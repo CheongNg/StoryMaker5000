@@ -1,17 +1,15 @@
 {
   "name": "StoryMaker5000",
   "short_name": "StoryMaker",
-  "description": "Create characters, continue long stories, and generate scene art.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#f7f8fb",
-  "theme_color": "#111827",
+  "theme_color": "#f7f8fb",
   "icons": [
     {
       "src": "/icon.svg",
       "sizes": "any",
-      "type": "image/svg+xml",
-      "purpose": "any maskable"
+      "type": "image/svg+xml"
     }
   ]
 }

@@ -1,68 +1,61 @@
-# StoryMaker5000 Build Pathway
+# StoryMaker5000 Pathway
 
-Paste this into Codex when you want the next stage built.
+## Stage 1: Local personal MVP
 
-## Goal
+Build a single-user browser app that can be tested from desktop and phone.
 
-Build a phone-friendly PWA that helps me:
+Completed:
 
-- Create and adapt story characters.
-- Continue a long story from my prompt.
-- Preserve memory across chapters.
-- Generate scene images from the story.
-- Use free or low-cost AI APIs where possible.
+- Next.js app scaffold
+- Mobile responsive layout
+- Local draft storage
+- Character setup
+- Story setup
+- Scene generation route
+- Scene image generation route
+- Mock mode for both AI gateways
+- Gateway validation and status reporting
 
-## Current foundation
+## Stage 2: Real model connection
 
-The first version should include:
+Add keys in `.env.local` and test:
 
-- A story setup panel.
-- Character cards.
-- A prompt box for continuing the story.
-- A generated scene feed.
-- Long-story memory notes.
-- Optional image generation for a scene.
-- Local browser storage so work persists before the database exists.
+- `STORY_PROVIDER=openai` or `STORY_PROVIDER=gemini`
+- `IMAGE_PROVIDER=openai` or `IMAGE_PROVIDER=cloudflare`
 
-## Next implementation stages
+Then tune prompts, output shape, and image style.
 
-1. Add Supabase authentication.
-2. Add Supabase tables for stories, characters, scenes, memories, and generated images.
-3. Replace local browser storage with Supabase sync.
-4. Add pgvector memory search for long stories.
-5. Add better character consistency for images.
-6. Add export to Markdown, PDF, and EPUB.
-7. Add a mobile install prompt and polished offline support.
+## Stage 3: Shared storage
 
-## Preferred software
+Replace browser-only local storage with SQLite or Postgres so phone and desktop share the same stories.
 
-- Next.js
-- React
-- TypeScript
-- Supabase
-- Gemini API for story text
-- Cloudflare Workers AI for image generation
-- Vercel for hosting
+Suggested tables:
 
-## Memory design
+- stories
+- characters
+- scenes
+- scene_images
+- memories
 
-Each generated scene should produce:
+## Stage 4: Rich story controls
 
-- Full scene text.
-- Scene summary.
-- Character updates.
-- Timeline updates.
-- New memory facts.
-- Image prompt.
+Add:
 
-Before generating the next scene, retrieve:
+- Story mode selector
+- Multi-character speaking order
+- Regenerate scene
+- Rewrite selected text
+- Continue from selected scene
+- Manual memory editor
+- Export story as Markdown
 
-- Story bible.
-- Active characters.
-- Recent scenes.
-- Relevant older memories.
-- User's current prompt.
+## Stage 5: Production concerns
 
-## Next Codex prompt
+Only after the personal tool is useful:
 
-Continue building StoryMaker5000. Add Supabase login and database sync for stories, characters, scenes, and memory notes. Keep the mobile-first design and preserve the existing local mock mode as a fallback.
+- Authentication
+- Cloud storage
+- Billing
+- Moderation workflows
+- Backups
+- Admin tools

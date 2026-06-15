@@ -1,9 +1,10 @@
 node_modules
 .next
-.npm-cache
 out
-dist
+build
 .env
-.env.local
-.vercel
+.env*.local
 *.log
+*.tsbuildinfo
+coverage
+dist
