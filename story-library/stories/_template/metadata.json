@@ -1,0 +1,30 @@
+{
+  "title": "Story Title",
+  "slug": "story-title",
+  "author": "",
+  "source": "original",
+  "license": "private",
+  "genre": "",
+  "tone": "",
+  "targetAge": "",
+  "readingLevel": "",
+  "visualStyle": "",
+  "coverImage": "images/cover.jpg",
+  "scenes": [
+    {
+      "id": "scene-01",
+      "title": "Scene 1",
+      "image": "images/scene-01.jpg",
+      "notes": ""
+    }
+  ],
+  "characters": [
+    {
+      "name": "",
+      "role": "",
+      "referenceImage": "references/character-reference.jpg"
+    }
+  ],
+  "tags": []
+}
+

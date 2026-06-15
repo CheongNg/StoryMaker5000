@@ -36,6 +36,70 @@ Open the local URL on your computer:
 http://localhost:3000
 ```
 
+## GitHub sync habit
+
+Use this protocol whenever switching between desktop Codex, phone Codex, or GitHub.
+
+Before starting work:
+
+```powershell
+git fetch origin
+git status
+git pull --rebase origin main
+```
+
+After making changes:
+
+```powershell
+git status
+git add .
+git commit -m "Describe your changes"
+git push origin main
+```
+
+Final check:
+
+```powershell
+git status
+```
+
+You are in sync when Git says your branch is up to date with `origin/main` and there are no uncommitted changes.
+
+## Frontend validation habit
+
+Use this protocol every time a change is finished, before committing and pushing.
+
+Start the app:
+
+```powershell
+npm.cmd run dev
+```
+
+Check on desktop:
+
+```text
+http://localhost:3000
+```
+
+Check on phone:
+
+```text
+http://YOUR_IPV4_ADDRESS:3000
+```
+
+Validate the main workflow:
+
+- App loads without console or visible errors
+- Layout works on desktop width
+- Layout works on phone width
+- Story setup can be edited
+- Character setup can be edited
+- Story generation still returns a result
+- Image generation still returns a result or a clear gateway status
+- Existing drafts still load from browser storage
+
+Only commit and push after the desktop and phone checks both pass.
+
 ## Test from your phone
 
 1. Keep your phone and computer on the same Wi-Fi network.
