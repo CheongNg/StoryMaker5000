@@ -144,7 +144,8 @@ button:disabled {
 }
 
 input,
-textarea {
+textarea,
+select {
   width: 100%;
   border: 1px solid var(--line);
   border-radius: 7px;
@@ -161,7 +162,8 @@ textarea {
 }
 
 input:focus,
-textarea:focus {
+textarea:focus,
+select:focus {
   border-color: var(--accent);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent);
 }
@@ -446,10 +448,181 @@ textarea:focus {
   margin-top: 12px;
 }
 
+.character-pocket-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.character-pocket,
+.supporting-pocket {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--panel) 88%, var(--paper));
+}
+
+.character-pocket {
+  min-width: 0;
+  padding: 9px;
+}
+
+.character-pocket-heading,
+.supporting-pocket summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.character-pocket-heading {
+  margin-bottom: 8px;
+}
+
+.character-pocket-heading h4 {
+  margin: 0;
+  font-size: 0.84rem;
+}
+
+.character-pocket-heading span,
+.supporting-pocket summary strong {
+  min-width: 24px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--muted);
+  padding: 2px 7px;
+  font-size: 0.74rem;
+  font-weight: 900;
+  text-align: center;
+}
+
+.character-pocket-strip {
+  max-height: 118px;
+  display: grid;
+  gap: 6px;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+
+.pocket-character {
+  min-width: 0;
+  width: 100%;
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--ink);
+  padding: 5px;
+  text-align: left;
+}
+
+.pocket-character.selected {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent-soft) 48%, transparent);
+}
+
+.pocket-character img,
+.pocket-character > span {
+  width: 30px;
+  height: 30px;
+  border-radius: 7px;
+}
+
+.pocket-character img {
+  object-fit: cover;
+}
+
+.pocket-character > span {
+  display: grid;
+  place-items: center;
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+  font-size: 0.78rem;
+  font-weight: 900;
+}
+
+.pocket-character strong {
+  overflow: hidden;
+  font-size: 0.8rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.character-pocket-empty {
+  border: 1px dashed var(--line);
+  border-radius: 7px;
+  color: var(--muted);
+  padding: 8px;
+  font-size: 0.78rem;
+  font-weight: 800;
+  text-align: center;
+}
+
+.supporting-pocket {
+  margin-top: 8px;
+  padding: 0;
+}
+
+.supporting-pocket summary {
+  cursor: pointer;
+  list-style: none;
+  padding: 9px 10px;
+  color: var(--ink);
+  font-size: 0.84rem;
+  font-weight: 900;
+}
+
+.supporting-pocket summary::-webkit-details-marker {
+  display: none;
+}
+
+.supporting-pocket .character-summary-list {
+  padding: 0 10px 10px;
+}
+
+.character-group-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.character-group {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--panel) 88%, var(--paper));
+  padding: 10px;
+}
+
+.character-group-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.character-group-heading h4 {
+  margin: 0;
+  font-size: 0.86rem;
+}
+
+.character-group-heading span {
+  min-width: 26px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--muted);
+  padding: 3px 7px;
+  font-size: 0.75rem;
+  font-weight: 900;
+  text-align: center;
+}
+
 .character-summary-list {
   display: grid;
   gap: 8px;
-  margin-top: 12px;
 }
 
 .character-summary {
@@ -457,10 +630,38 @@ textarea:focus {
   grid-template-columns: 42px minmax(0, 1fr);
   gap: 10px;
   align-items: center;
+  width: 100%;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: color-mix(in srgb, var(--panel) 82%, var(--paper));
   padding: 8px;
+  color: var(--ink);
+  text-align: left;
+}
+
+.character-summary.selected {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent-soft) 54%, var(--panel));
+}
+
+.character-summary.compact {
+  grid-template-columns: 34px minmax(0, 1fr);
+  padding: 6px;
+}
+
+.character-summary.compact img,
+.character-summary.compact > span {
+  width: 34px;
+  height: 34px;
+}
+
+.character-group-empty {
+  border: 1px dashed var(--line);
+  border-radius: 8px;
+  color: var(--muted);
+  padding: 10px;
+  font-size: 0.82rem;
+  font-weight: 800;
 }
 
 .character-summary img,
@@ -545,6 +746,71 @@ textarea:focus {
   color: var(--muted);
   font-size: 0.78rem;
   line-height: 1.35;
+}
+
+.checkpoint-list {
+  display: grid;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.checkpoint-item {
+  border-top: 1px solid var(--line);
+  padding-top: 12px;
+}
+
+.checkpoint-item:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.checkpoint-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.checkpoint-heading strong,
+.checkpoint-heading span {
+  display: block;
+}
+
+.checkpoint-heading strong {
+  font-size: 0.92rem;
+}
+
+.checkpoint-heading span {
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
+.checkpoint-section {
+  margin-top: 10px;
+}
+
+.checkpoint-section > span {
+  display: block;
+  color: var(--muted);
+  font-size: 0.76rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.checkpoint-section p,
+.checkpoint-section ul {
+  margin: 5px 0 0;
+  color: var(--ink);
+  font-size: 0.84rem;
+  line-height: 1.42;
+}
+
+.checkpoint-section ul {
+  display: grid;
+  gap: 5px;
+  padding-left: 18px;
 }
 
 .upload-control {
@@ -850,6 +1116,20 @@ textarea:focus {
 .empty-state p {
   margin-top: 8px;
   color: var(--muted);
+}
+
+.empty-state.compact {
+  margin-top: 12px;
+  padding: 14px;
+}
+
+.empty-state.compact h3 {
+  font-size: 0.94rem;
+}
+
+.empty-state.compact p {
+  font-size: 0.84rem;
+  line-height: 1.35;
 }
 
 .notice {

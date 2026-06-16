@@ -1,5 +1,11 @@
 # StoryMaker5000 Pathway
 
+## Code modification protocol
+
+- Do not edit `app/api/instructions.ts` during optimization, refactoring, token-budget work, provider changes, or general code cleanup.
+- Treat `app/api/instructions.ts` as user-owned instruction content.
+- Only change `app/api/instructions.ts` when the user explicitly asks to edit that file or asks to change the backend story/picture instruction text itself.
+
 ## Stage 1: Local personal MVP
 
 Build a single-user browser app that can be tested from desktop and phone.

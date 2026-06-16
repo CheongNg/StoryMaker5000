@@ -17,8 +17,8 @@ type ValidImageRequest = {
   referenceImages: ReferenceImage[];
 };
 
-const maxImagePromptLength = 2500;
-const maxReferenceImages = 6;
+const maxImagePromptLength = 1200;
+const maxReferenceImages = 3;
 const maxGrokReferenceImages = 3;
 const maxReferenceImageLength = 1_600_000;
 const defaultImageSize = "1024x1024";
@@ -143,7 +143,7 @@ function validateImageRequest(body: unknown, checks: GatewayCheck[]) {
     return { ok: false as const, message: "Image prompt is required." };
   }
 
-  const prompt = body.prompt.trim();
+  let prompt = body.prompt.trim();
 
   if (!prompt) {
     checks.push({
@@ -157,13 +157,10 @@ function validateImageRequest(body: unknown, checks: GatewayCheck[]) {
   if (prompt.length > maxImagePromptLength) {
     checks.push({
       id: "validation",
-      status: "error",
-      detail: `Image prompt must be ${maxImagePromptLength} characters or less.`
+      status: "warning",
+      detail: `Image prompt was compacted to ${maxImagePromptLength} characters for provider efficiency.`
     });
-    return {
-      ok: false as const,
-      message: `Image prompt must be ${maxImagePromptLength} characters or less.`
-    };
+    prompt = compactText(prompt, maxImagePromptLength);
   }
 
   const referenceImages = validateReferenceImages(body.referenceImages, checks);
@@ -601,7 +598,18 @@ function isObject(value: unknown): value is Record<string, unknown> {
 }
 
 function withBackendPictureLayer(prompt: string) {
-  return `${prompt}\n\nPicture generation guardrails:\n${backendPictureInstructions}`;
+  return compactText(
+    `${prompt}\n\nPicture guardrails:\n${backendPictureInstructions}`,
+    maxImagePromptLength
+  );
+}
+
+function compactText(value: string, maxLength: number) {
+  const clean = value.replace(/\s+/g, " ").trim();
+
+  if (clean.length <= maxLength) return clean;
+
+  return `${clean.slice(0, Math.max(0, maxLength - 3)).trim()}...`;
 }
 
 function readProviderError(data: unknown, fallback: string) {

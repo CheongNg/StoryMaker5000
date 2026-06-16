@@ -14,6 +14,7 @@ type Story = {
 type Character = {
   id: string;
   name: string;
+  importance: CharacterImportance;
   role: string;
   personality: string;
   appearance: string;
@@ -22,6 +23,8 @@ type Character = {
   portraitUrl?: string;
   portraitName?: string;
 };
+
+type CharacterImportance = "main" | "important" | "supporting";
 
 type Scene = {
   id: string;
@@ -36,6 +39,15 @@ type Scene = {
   imageUrl?: string;
   createdAt: string;
   gateway?: GatewayReport;
+};
+
+type StoryCheckpoint = {
+  id: string;
+  title: string;
+  createdAt: string;
+  storyline: string;
+  keyCharacters: string[];
+  attitudeShifts: string[];
 };
 
 type GatewayCheck = {
@@ -77,6 +89,7 @@ const starterCharacters: Character[] = [
   {
     id: "mira",
     name: "Mira Vale",
+    importance: "main",
     role: "Main character",
     personality: "Observant, guarded, quietly direct when she feels safe",
     appearance: "Shoulder-length dark hair, tailored coat, understated jewelry",
@@ -91,7 +104,11 @@ const themeKey = "storymaker5000-theme";
 export default function Home() {
   const [story, setStory] = useState<Story>(defaultStory);
   const [characters, setCharacters] = useState<Character[]>(starterCharacters);
+  const [selectedCharacterId, setSelectedCharacterId] = useState(
+    starterCharacters[0]?.id || ""
+  );
   const [scenes, setScenes] = useState<Scene[]>([]);
+  const [storyCheckpoints, setStoryCheckpoints] = useState<StoryCheckpoint[]>([]);
   const [prompt, setPrompt] = useState(
     "Continue with Mira entering a private conversation where both people are careful about what they reveal."
   );
@@ -100,6 +117,7 @@ export default function Home() {
   const [operationStartedAt, setOperationStartedAt] = useState<number | null>(null);
   const [elapsedTick, setElapsedTick] = useState(Date.now());
   const [notice, setNotice] = useState("");
+  const [checkpointStatus, setCheckpointStatus] = useState("");
   const [gateway, setGateway] = useState<GatewayReport>({ checks: [] });
   const [healthChecks, setHealthChecks] = useState<GatewayCheck[]>([]);
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -142,9 +160,12 @@ export default function Home() {
       if (!saved) return;
 
       const parsed = JSON.parse(saved);
+      const savedCharacters = normalizeCharacters(parsed.characters);
       setStory(normalizeStory(parsed.story));
-      setCharacters(parsed.characters || starterCharacters);
+      setCharacters(savedCharacters);
+      setSelectedCharacterId(savedCharacters[0]?.id || "");
       setScenes(parsed.scenes || []);
+      setStoryCheckpoints(normalizeStoryCheckpoints(parsed.storyCheckpoints));
       setPrompt(parsed.prompt || "");
     } catch {
       window.localStorage.removeItem(storageKey);
@@ -165,7 +186,7 @@ export default function Home() {
     try {
       window.localStorage.setItem(
         storageKey,
-        JSON.stringify({ story, characters, scenes, prompt })
+        JSON.stringify({ story, characters, scenes, storyCheckpoints, prompt })
       );
     } catch {
       setStorageStatus({
@@ -175,7 +196,7 @@ export default function Home() {
         detail: "This browser could not save the current draft."
       });
     }
-  }, [story, characters, scenes, prompt]);
+  }, [story, characters, scenes, storyCheckpoints, prompt]);
 
   useEffect(() => {
     if ("serviceWorker" in navigator) {
@@ -192,7 +213,7 @@ export default function Home() {
     return () => window.clearInterval(timer);
   }, [busy, imageBusyId]);
 
-  const memories = useMemo(
+  const sceneMemories = useMemo(
     () =>
       scenes.flatMap((scene) => [
         scene.summary,
@@ -202,9 +223,32 @@ export default function Home() {
       ]),
     [scenes]
   );
+  const checkpointMemories = useMemo(
+    () => storyCheckpoints.flatMap(formatCheckpointForMemory),
+    [storyCheckpoints]
+  );
+  const memories = useMemo(
+    () => [...checkpointMemories, ...sceneMemories],
+    [checkpointMemories, sceneMemories]
+  );
 
   const chatScenes = useMemo(() => [...scenes].reverse(), [scenes]);
   const latestScene = scenes[0];
+  const groupedCharacters = useMemo(
+    () => groupCharacters(characters),
+    [characters]
+  );
+  const characterPockets = groupedCharacters.filter(
+    (group) => group.id === "main" || group.id === "important"
+  );
+  const supportingCharacters =
+    groupedCharacters.find((group) => group.id === "supporting")?.characters || [];
+  const selectedCharacter =
+    characters.find((character) => character.id === selectedCharacterId) ||
+    characters[0];
+  const selectedCharacterIndex = selectedCharacter
+    ? characters.findIndex((character) => character.id === selectedCharacter.id)
+    : -1;
   const imageBusyScene = scenes.find((scene) => scene.id === imageBusyId);
   const imageBusy = Boolean(imageBusyId);
   const elapsedSeconds = operationStartedAt
@@ -274,6 +318,7 @@ export default function Home() {
     setBusy(true);
     setOperationStartedAt(Date.now());
     setNotice("");
+    setCheckpointStatus("");
 
     try {
       const response = await fetch("/api/story/generate", {
@@ -282,12 +327,12 @@ export default function Home() {
         body: JSON.stringify({
           story,
           characters,
-          recentScenes: scenes.slice(0, 6).map((scene) => ({
+          recentScenes: scenes.slice(0, 3).map((scene) => ({
             title: scene.title,
             text: scene.text,
             summary: scene.summary
           })),
-          memories,
+          memories: memories.slice(0, 24),
           prompt
         })
       });
@@ -334,7 +379,7 @@ export default function Home() {
     const sourcePrompt = (scene.imagePrompt || scene.summary || scene.text).trim();
     const referenceImages = characters
       .filter((character) => character.portraitUrl)
-      .slice(0, 6)
+      .slice(0, 3)
       .map((character) => ({
         name: character.name || "Unnamed character",
         imageUrl: character.portraitUrl || ""
@@ -401,20 +446,21 @@ export default function Home() {
   }
 
   function addCharacter() {
-    setCharacters((current) => [
-      ...current,
-      {
-        id: createId("character"),
-        name: "New character",
-        role: "Supporting character",
-        personality: "",
-        appearance: "",
-        goals: "",
-        secrets: "",
-        portraitUrl: "",
-        portraitName: ""
-      }
-    ]);
+    const nextCharacter: Character = {
+      id: createId("character"),
+      name: "New character",
+      importance: "supporting",
+      role: "Supporting character",
+      personality: "",
+      appearance: "",
+      goals: "",
+      secrets: "",
+      portraitUrl: "",
+      portraitName: ""
+    };
+
+    setCharacters((current) => [...current, nextCharacter]);
+    setSelectedCharacterId(nextCharacter.id);
   }
 
   function updateCharacter(id: string, patch: Partial<Character>) {
@@ -426,7 +472,13 @@ export default function Home() {
   }
 
   function removeCharacter(id: string) {
-    setCharacters((current) => current.filter((character) => character.id !== id));
+    const nextCharacters = characters.filter((character) => character.id !== id);
+
+    setCharacters(nextCharacters);
+
+    if (selectedCharacterId === id) {
+      setSelectedCharacterId(nextCharacters[0]?.id || "");
+    }
   }
 
   async function uploadCharacterPortrait(id: string, files: FileList | null) {
@@ -463,6 +515,20 @@ export default function Home() {
     });
   }
 
+  function saveStoryCheckpoint() {
+    const checkpoint = createStoryCheckpoint(story, characters, scenes);
+
+    setStoryCheckpoints((current) => [checkpoint, ...current].slice(0, 12));
+    setCheckpointStatus("Story checkpoint saved into long-term memory.");
+  }
+
+  function removeStoryCheckpoint(id: string) {
+    setStoryCheckpoints((current) =>
+      current.filter((checkpoint) => checkpoint.id !== id)
+    );
+    setCheckpointStatus("Story checkpoint removed from long-term memory.");
+  }
+
   function resetDraft() {
     const shouldReset = window.confirm(
       "Reset this story? This will clear the current scenes, prompt, and scenario setup."
@@ -472,12 +538,15 @@ export default function Home() {
 
     setStory(defaultStory);
     setCharacters(starterCharacters);
+    setSelectedCharacterId(starterCharacters[0]?.id || "");
     setScenes([]);
+    setStoryCheckpoints([]);
     setPrompt(
       "Continue with Mira entering a private conversation where both people are careful about what they reveal."
     );
     setGateway({ checks: [] });
     setNotice("");
+    setCheckpointStatus("");
   }
 
   return (
@@ -507,6 +576,7 @@ export default function Home() {
                 <span>{characters.length} characters</span>
                 <span>{scenes.length} scenes</span>
                 <span>{memories.length} memory notes</span>
+                <span>{storyCheckpoints.length} checkpoints</span>
               </div>
             </div>
             <button
@@ -624,6 +694,14 @@ export default function Home() {
               Reset Story
             </button>
             <button
+              className="button"
+              type="button"
+              disabled={busy || imageBusy}
+              onClick={saveStoryCheckpoint}
+            >
+              Save Checkpoint
+            </button>
+            <button
               className="button primary"
               type="button"
               disabled={busy}
@@ -642,7 +720,9 @@ export default function Home() {
           </div>
           <div className="gateway-strip">
             <ProviderBadge gateway={gateway} />
-            <span>{notice || summarizeChecks(gateway.checks || healthChecks)}</span>
+            <span>
+              {notice || checkpointStatus || summarizeChecks(gateway.checks || healthChecks)}
+            </span>
           </div>
         </section>
       </section>
@@ -714,6 +794,71 @@ export default function Home() {
           </Field>
         </section>
 
+        <section className="drawer-section" aria-labelledby="story-checkpoints">
+          <div className="drawer-section-title">
+            <h3 id="story-checkpoints">Story Checkpoints</h3>
+            <button
+              className="button small"
+              type="button"
+              onClick={saveStoryCheckpoint}
+            >
+              Save
+            </button>
+          </div>
+
+          {storyCheckpoints.length > 0 ? (
+            <div className="checkpoint-list">
+              {storyCheckpoints.map((checkpoint) => (
+                <article className="checkpoint-item" key={checkpoint.id}>
+                  <div className="checkpoint-heading">
+                    <div>
+                      <strong>{checkpoint.title}</strong>
+                      <span>
+                        {new Date(checkpoint.createdAt).toLocaleString([], {
+                          dateStyle: "medium",
+                          timeStyle: "short"
+                        })}
+                      </span>
+                    </div>
+                    <button
+                      className="button small"
+                      type="button"
+                      onClick={() => removeStoryCheckpoint(checkpoint.id)}
+                    >
+                      Delete
+                    </button>
+                  </div>
+                  <div className="checkpoint-section">
+                    <span>Storyline</span>
+                    <p>{checkpoint.storyline}</p>
+                  </div>
+                  <div className="checkpoint-section">
+                    <span>Key Characters</span>
+                    <ul>
+                      {checkpoint.keyCharacters.map((character) => (
+                        <li key={character}>{character}</li>
+                      ))}
+                    </ul>
+                  </div>
+                  <div className="checkpoint-section">
+                    <span>Attitude Shifts</span>
+                    <ul>
+                      {checkpoint.attitudeShifts.map((shift) => (
+                        <li key={shift}>{shift}</li>
+                      ))}
+                    </ul>
+                  </div>
+                </article>
+              ))}
+            </div>
+          ) : (
+            <div className="empty-state compact">
+              <h3>No checkpoints saved</h3>
+              <p>Save the current storyline and character shifts when a scene lands.</p>
+            </div>
+          )}
+        </section>
+
         <section className="drawer-section" aria-labelledby="character-background">
           <div className="drawer-section-title">
             <h3 id="character-background">Main Characters</h3>
@@ -722,48 +867,127 @@ export default function Home() {
             </button>
           </div>
 
-          <div className="character-summary-list" aria-label="Added characters">
-            {characters.map((character, index) => (
-              <div className="character-summary" key={`summary-${character.id}`}>
-                {character.portraitUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={character.portraitUrl}
-                    alt={`${character.name || `Character ${index + 1}`} reference`}
-                  />
-                ) : (
-                  <span>{(character.name || `${index + 1}`).slice(0, 1)}</span>
-                )}
-                <div>
-                  <strong>{character.name || `Main character ${index + 1}`}</strong>
-                  <small>{character.role || "Main character"}</small>
+          <div className="character-pocket-grid" aria-label="Key character pockets">
+            {characterPockets.map((group) => (
+              <section className="character-pocket" key={group.id}>
+                <div className="character-pocket-heading">
+                  <h4>{group.label}</h4>
+                  <span>{group.characters.length}</span>
                 </div>
-              </div>
+                <div className="character-pocket-strip">
+                  {group.characters.length > 0 ? (
+                    group.characters.map((character) => {
+                      const index = characters.findIndex(
+                        (item) => item.id === character.id
+                      );
+                      const fallbackName = `Character ${index + 1}`;
+
+                      return (
+                        <button
+                          className={`pocket-character ${
+                            selectedCharacter?.id === character.id ? "selected" : ""
+                          }`}
+                          key={`pocket-${character.id}`}
+                          title={character.name || fallbackName}
+                          type="button"
+                          onClick={() => setSelectedCharacterId(character.id)}
+                        >
+                          {character.portraitUrl ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={character.portraitUrl}
+                              alt={`${character.name || fallbackName} reference`}
+                            />
+                          ) : (
+                            <span>{(character.name || `${index + 1}`).slice(0, 1)}</span>
+                          )}
+                          <strong>{character.name || fallbackName}</strong>
+                        </button>
+                      );
+                    })
+                  ) : (
+                    <div className="character-pocket-empty">Empty</div>
+                  )}
+                </div>
+              </section>
             ))}
           </div>
 
+          <details
+            className="supporting-pocket"
+            open={selectedCharacter?.importance === "supporting"}
+          >
+            <summary>
+              <span>Supporting</span>
+              <strong>{supportingCharacters.length}</strong>
+            </summary>
+            <div className="character-summary-list">
+              {supportingCharacters.length > 0 ? (
+                supportingCharacters.map((character) => {
+                  const index = characters.findIndex(
+                    (item) => item.id === character.id
+                  );
+                  const fallbackName = `Character ${index + 1}`;
+
+                  return (
+                    <button
+                      className={`character-summary compact ${
+                        selectedCharacter?.id === character.id ? "selected" : ""
+                      }`}
+                      key={`supporting-${character.id}`}
+                      type="button"
+                      onClick={() => setSelectedCharacterId(character.id)}
+                    >
+                      {character.portraitUrl ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={character.portraitUrl}
+                          alt={`${character.name || fallbackName} reference`}
+                        />
+                      ) : (
+                        <span>{(character.name || `${index + 1}`).slice(0, 1)}</span>
+                      )}
+                      <div>
+                        <strong>{character.name || fallbackName}</strong>
+                        <small>{character.role || "Supporting"}</small>
+                      </div>
+                    </button>
+                  );
+                })
+              ) : (
+                <div className="character-group-empty">No supporting characters</div>
+              )}
+            </div>
+          </details>
+
           <div className="drawer-character-list">
-            {characters.map((character, index) => (
-              <article className="drawer-character" key={character.id}>
+            {selectedCharacter ? (
+              <article className="drawer-character" key={selectedCharacter.id}>
                 <div className="drawer-character-header">
-                  <h4>{character.name || `Main character ${index + 1}`}</h4>
+                  <h4>
+                    {selectedCharacter.name ||
+                      `Character ${selectedCharacterIndex + 1}`}
+                  </h4>
                   {characters.length > 1 ? (
                     <button
                       className="button danger small"
                       type="button"
-                      onClick={() => removeCharacter(character.id)}
+                      onClick={() => removeCharacter(selectedCharacter.id)}
                     >
                       Remove
                     </button>
                     ) : null}
                 </div>
                 <div className="portrait-row">
-                  {character.portraitUrl ? (
+                  {selectedCharacter.portraitUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
                       className="portrait-preview"
-                      src={character.portraitUrl}
-                      alt={`${character.name || `Character ${index + 1}`} portrait`}
+                      src={selectedCharacter.portraitUrl}
+                      alt={`${
+                        selectedCharacter.name ||
+                        `Character ${selectedCharacterIndex + 1}`
+                      } portrait`}
                     />
                   ) : (
                     <div className="portrait-placeholder">No image</div>
@@ -775,46 +999,67 @@ export default function Home() {
                         accept="image/png,image/jpeg,image/webp"
                         type="file"
                         onChange={(event) =>
-                          uploadCharacterPortrait(character.id, event.target.files)
+                          uploadCharacterPortrait(
+                            selectedCharacter.id,
+                            event.target.files
+                          )
                         }
                       />
                     </label>
-                    {character.portraitUrl ? (
+                    {selectedCharacter.portraitUrl ? (
                       <button
                         className="button small"
                         type="button"
-                        onClick={() => removeCharacterPortrait(character.id)}
+                        onClick={() => removeCharacterPortrait(selectedCharacter.id)}
                       >
                         Remove picture
                       </button>
                     ) : null}
                     <small>
-                      {character.portraitName ||
+                      {selectedCharacter.portraitName ||
                         "Used as a reference template for scene images."}
                     </small>
                   </div>
                 </div>
                 <Field label="Name">
                   <input
-                    value={character.name}
+                    value={selectedCharacter.name}
                     onChange={(event) =>
-                      updateCharacter(character.id, { name: event.target.value })
+                      updateCharacter(selectedCharacter.id, {
+                        name: event.target.value
+                      })
                     }
                   />
                 </Field>
+                <Field label="Group">
+                  <select
+                    value={selectedCharacter.importance}
+                    onChange={(event) =>
+                      updateCharacter(selectedCharacter.id, {
+                        importance: event.target.value as CharacterImportance
+                      })
+                    }
+                  >
+                    <option value="main">Main</option>
+                    <option value="important">Important</option>
+                    <option value="supporting">Supporting</option>
+                  </select>
+                </Field>
                 <Field label="Role">
                   <input
-                    value={character.role}
+                    value={selectedCharacter.role}
                     onChange={(event) =>
-                      updateCharacter(character.id, { role: event.target.value })
+                      updateCharacter(selectedCharacter.id, {
+                        role: event.target.value
+                      })
                     }
                   />
                 </Field>
                 <Field label="Personality">
                   <textarea
-                    value={character.personality}
+                    value={selectedCharacter.personality}
                     onChange={(event) =>
-                      updateCharacter(character.id, {
+                      updateCharacter(selectedCharacter.id, {
                         personality: event.target.value
                       })
                     }
@@ -822,9 +1067,9 @@ export default function Home() {
                 </Field>
                 <Field label="Appearance">
                   <textarea
-                    value={character.appearance}
+                    value={selectedCharacter.appearance}
                     onChange={(event) =>
-                      updateCharacter(character.id, {
+                      updateCharacter(selectedCharacter.id, {
                         appearance: event.target.value
                       })
                     }
@@ -832,24 +1077,31 @@ export default function Home() {
                 </Field>
                 <Field label="Goals">
                   <textarea
-                    value={character.goals}
+                    value={selectedCharacter.goals}
                     onChange={(event) =>
-                      updateCharacter(character.id, { goals: event.target.value })
+                      updateCharacter(selectedCharacter.id, {
+                        goals: event.target.value
+                      })
                     }
                   />
                 </Field>
                 <Field label="Secrets">
                   <textarea
-                    value={character.secrets}
+                    value={selectedCharacter.secrets}
                     onChange={(event) =>
-                      updateCharacter(character.id, {
+                      updateCharacter(selectedCharacter.id, {
                         secrets: event.target.value
                       })
                     }
                   />
                 </Field>
               </article>
-            ))}
+            ) : (
+              <div className="empty-state">
+                <h3>No character selected</h3>
+                <p>Add a character to start editing the cast.</p>
+              </div>
+            )}
           </div>
         </section>
 
@@ -976,7 +1228,7 @@ function buildImagePrompt(
   if (referenceImages.length === 0) return sourcePrompt;
 
   const names = referenceImages.map((image) => image.name).join(", ");
-  return `${sourcePrompt}\n\nUse the uploaded character reference image(s) as visual templates for: ${names}. Preserve the characters' recognizable look, hairstyle, face shape, clothing cues, and overall visual identity while adapting pose, lighting, and setting to this scene.`;
+  return `${sourcePrompt}\n\nUse references for: ${names}. Preserve identity while adapting pose, lighting, and setting.`;
 }
 
 function resizeImage(file: File) {
@@ -989,7 +1241,7 @@ function resizeImage(file: File) {
 
       image.onerror = () => reject(new Error("Could not load image."));
       image.onload = () => {
-        const maxDimension = 768;
+        const maxDimension = 512;
         const scale = Math.min(
           1,
           maxDimension / Math.max(image.width, image.height)
@@ -1007,7 +1259,7 @@ function resizeImage(file: File) {
         canvas.width = width;
         canvas.height = height;
         context.drawImage(image, 0, 0, width, height);
-        resolve(canvas.toDataURL("image/jpeg", 0.82));
+        resolve(canvas.toDataURL("image/jpeg", 0.75));
       };
 
       image.src = String(reader.result);
@@ -1025,6 +1277,97 @@ function compactSummary(value: string) {
   return `Earlier summary trimmed.\n\n${value.slice(value.length - maxLength)}`;
 }
 
+function createStoryCheckpoint(
+  story: Story,
+  characters: Character[],
+  scenes: Scene[]
+): StoryCheckpoint {
+  const latestScene = scenes[0];
+  const sceneSummaries = scenes
+    .slice(0, 5)
+    .map((scene) => scene.summary || scene.title)
+    .filter(Boolean)
+    .reverse();
+  const storyline = compactCheckpointText(
+    [story.summary, ...sceneSummaries].filter(Boolean).join(" ")
+  );
+  const keyCharacters = characters
+    .filter(
+      (character) =>
+        character.importance === "main" || character.importance === "important"
+    )
+    .map((character) => {
+      const details = [
+        character.role,
+        character.goals ? `wants ${character.goals}` : "",
+        character.personality ? `attitude: ${character.personality}` : ""
+      ].filter(Boolean);
+
+      return compactCheckpointText(
+        `${character.name || "Unnamed character"}${
+          details.length ? ` - ${details.join("; ")}` : ""
+        }`,
+        260
+      );
+    })
+    .slice(0, 6);
+  const attitudeShifts = collectUnique(
+    scenes.flatMap((scene) => scene.characterUpdates)
+  )
+    .slice(0, 8)
+    .map((shift) => compactCheckpointText(shift, 220));
+
+  return {
+    id: createId("checkpoint"),
+    title: latestScene?.title || story.title || "Story checkpoint",
+    createdAt: new Date().toISOString(),
+    storyline:
+      storyline ||
+      "The story checkpoint was saved before any major storyline movement.",
+    keyCharacters:
+      keyCharacters.length > 0
+        ? keyCharacters
+        : ["No key characters have been defined yet."],
+    attitudeShifts:
+      attitudeShifts.length > 0
+        ? attitudeShifts
+        : ["No durable character attitude shifts have been recorded yet."]
+  };
+}
+
+function formatCheckpointForMemory(checkpoint: StoryCheckpoint) {
+  return [
+    `Checkpoint: ${checkpoint.storyline}`,
+    `Checkpoint key characters: ${checkpoint.keyCharacters.join(" | ")}`,
+    `Checkpoint attitude shifts: ${checkpoint.attitudeShifts.join(" | ")}`
+  ];
+}
+
+function compactCheckpointText(value: string, maxLength = 520) {
+  const clean = value.replace(/\s+/g, " ").trim();
+
+  if (clean.length <= maxLength) return clean;
+
+  return `${clean.slice(0, Math.max(0, maxLength - 3)).trim()}...`;
+}
+
+function collectUnique(values: string[]) {
+  const seen = new Set<string>();
+  const unique: string[] = [];
+
+  values.forEach((value) => {
+    const clean = value.trim();
+    const key = clean.toLowerCase();
+
+    if (!clean || seen.has(key)) return;
+
+    seen.add(key);
+    unique.push(clean);
+  });
+
+  return unique;
+}
+
 function normalizeStory(value: unknown): Story {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     return defaultStory;
@@ -1034,6 +1377,93 @@ function normalizeStory(value: unknown): Story {
     ...defaultStory,
     ...(value as Partial<Story>)
   };
+}
+
+function normalizeCharacters(value: unknown): Character[] {
+  if (!Array.isArray(value) || value.length === 0) {
+    return starterCharacters;
+  }
+
+  return value
+    .filter((character): character is Partial<Character> =>
+      Boolean(character && typeof character === "object" && !Array.isArray(character))
+    )
+    .map((character, index) => ({
+      id: character.id || createId("character"),
+      name: character.name || `Character ${index + 1}`,
+      importance:
+        character.importance === "main" ||
+        character.importance === "important" ||
+        character.importance === "supporting"
+          ? character.importance
+          : index === 0
+            ? "main"
+            : "important",
+      role: character.role || (index === 0 ? "Main character" : "Supporting character"),
+      personality: character.personality || "",
+      appearance: character.appearance || "",
+      goals: character.goals || "",
+      secrets: character.secrets || "",
+      portraitUrl: character.portraitUrl || "",
+      portraitName: character.portraitName || ""
+    }));
+}
+
+function normalizeStoryCheckpoints(value: unknown): StoryCheckpoint[] {
+  if (!Array.isArray(value)) return [];
+
+  return value
+    .filter((checkpoint): checkpoint is Partial<StoryCheckpoint> =>
+      Boolean(
+        checkpoint &&
+          typeof checkpoint === "object" &&
+          !Array.isArray(checkpoint)
+      )
+    )
+    .map((checkpoint) => ({
+      id: checkpoint.id || createId("checkpoint"),
+      title: checkpoint.title || "Story checkpoint",
+      createdAt: checkpoint.createdAt || new Date().toISOString(),
+      storyline:
+        checkpoint.storyline ||
+        "The story checkpoint was saved before any major storyline movement.",
+      keyCharacters:
+        Array.isArray(checkpoint.keyCharacters) &&
+        checkpoint.keyCharacters.length > 0
+          ? checkpoint.keyCharacters.filter(
+              (item): item is string => typeof item === "string" && Boolean(item.trim())
+            )
+          : ["No key characters have been defined yet."],
+      attitudeShifts:
+        Array.isArray(checkpoint.attitudeShifts) &&
+        checkpoint.attitudeShifts.length > 0
+          ? checkpoint.attitudeShifts.filter(
+              (item): item is string => typeof item === "string" && Boolean(item.trim())
+            )
+          : ["No durable character attitude shifts have been recorded yet."]
+    }))
+    .filter((checkpoint) => checkpoint.storyline.trim())
+    .slice(0, 12);
+}
+
+function groupCharacters(characters: Character[]) {
+  const groups: Array<{
+    id: CharacterImportance;
+    label: string;
+    characters: Character[];
+  }> = [
+    { id: "main", label: "Main", characters: [] },
+    { id: "important", label: "Important", characters: [] },
+    { id: "supporting", label: "Supporting", characters: [] }
+  ];
+
+  characters.forEach((character) => {
+    const group =
+      groups.find((item) => item.id === character.importance) || groups[2];
+    group.characters.push(character);
+  });
+
+  return groups;
 }
 
 function formatElapsed(seconds: number) {

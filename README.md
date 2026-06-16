@@ -155,6 +155,23 @@ app/api/instructions.ts
 
 These backend instructions are applied automatically to every story and image request. Story and picture guardrails should be edited in this backend file instead of repeated in the frontend.
 
+## Code modification protocol
+
+Do not edit `app/api/instructions.ts` during optimization, refactoring, token-budget work, provider changes, or general code cleanup. Treat it as user-owned instruction content. Only change it when the user explicitly asks to edit `app/api/instructions.ts` or asks to change the backend story/picture instruction text itself.
+
+## Token and generation budget
+
+The app keeps live provider calls lean by default:
+
+- Story generation sends only compact scenario fields, the 3 most recent scenes, and 24 memory notes.
+- Story output targets 350-650 words and keeps memory/update arrays short.
+- Story-generated image prompts are capped to a compact visual prompt.
+- Image generation accepts up to 3 reference images.
+- Browser-uploaded character references are resized before storage and generation.
+- Long image prompts are compacted by the backend before calling the provider.
+
+Tune these limits in `app/api/story/generate/route.ts`, `app/api/image/generate/route.ts`, and `app/page.tsx`.
+
 Story generation:
 
 ```text

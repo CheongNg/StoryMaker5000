@@ -1,8 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import {
-  backendPictureInstructions,
-  backendStoryInstructions
-} from "../../instructions";
+import { backendStoryInstructions } from "../../instructions";
 
 type Character = {
   id?: string;
@@ -59,7 +56,12 @@ type GatewayCheck = {
 
 const maxPromptLength = 4000;
 const maxCharacters = 8;
-const maxMemoryItems = 60;
+const maxMemoryItems = 24;
+const maxRecentScenes = 3;
+const maxStoryFieldLength = 900;
+const maxCharacterFieldLength = 420;
+const maxRecentSceneTextLength = 360;
+const maxMemoryLength = 240;
 
 export const dynamic = "force-dynamic";
 
@@ -170,45 +172,61 @@ function validateStoryRequest(body: unknown, checks: GatewayCheck[]) {
   }
 
   const cleanStory: Story = {
-    title: stringOrDefault(story.title, "Untitled story"),
-    genre: stringOrDefault(story.genre, "Adult contemporary drama"),
-    tone: stringOrDefault(story.tone, "Intimate and character driven"),
-    worldRules: stringOrDefault(story.worldRules, "No scenario constraints defined."),
-    summary: stringOrDefault(story.summary, "The scenario is just beginning.")
+    title: compactText(stringOrDefault(story.title, "Untitled story"), 120),
+    genre: compactText(stringOrDefault(story.genre, "Adult contemporary drama"), 120),
+    tone: compactText(stringOrDefault(story.tone, "Intimate and character driven"), 160),
+    worldRules: compactText(
+      stringOrDefault(story.worldRules, "No scenario constraints defined."),
+      maxStoryFieldLength
+    ),
+    summary: compactText(
+      stringOrDefault(story.summary, "The scenario is just beginning."),
+      maxStoryFieldLength
+    )
   };
 
   const cleanCharacters = characters.map((character, index) => ({
     id: isObject(character) ? stringOrDefault(character.id, `character-${index}`) : `character-${index}`,
     name: isObject(character)
-      ? stringOrDefault(character.name, `Character ${index + 1}`)
+      ? compactText(stringOrDefault(character.name, `Character ${index + 1}`), 80)
       : `Character ${index + 1}`,
-    role: isObject(character) ? stringOrDefault(character.role, "Cast member") : "Cast member",
-    personality: isObject(character) ? stringOrDefault(character.personality, "") : "",
-    appearance: isObject(character) ? stringOrDefault(character.appearance, "") : "",
-    goals: isObject(character) ? stringOrDefault(character.goals, "") : "",
-    secrets: isObject(character) ? stringOrDefault(character.secrets, "") : ""
+    role: isObject(character)
+      ? compactText(stringOrDefault(character.role, "Cast member"), 120)
+      : "Cast member",
+    personality: isObject(character)
+      ? compactText(stringOrDefault(character.personality, ""), maxCharacterFieldLength)
+      : "",
+    appearance: isObject(character)
+      ? compactText(stringOrDefault(character.appearance, ""), maxCharacterFieldLength)
+      : "",
+    goals: isObject(character)
+      ? compactText(stringOrDefault(character.goals, ""), maxCharacterFieldLength)
+      : "",
+    secrets: isObject(character)
+      ? compactText(stringOrDefault(character.secrets, ""), maxCharacterFieldLength)
+      : ""
   }));
 
   const cleanRecentScenes = Array.isArray(recentScenes)
-    ? recentScenes.slice(0, 6).filter(isObject).map((scene) => ({
+    ? recentScenes.slice(0, maxRecentScenes).filter(isObject).map((scene) => ({
         title: stringOrDefault(scene.title, "Previous scene"),
-        text: stringOrDefault(scene.text, ""),
-        summary: stringOrDefault(scene.summary, "")
+        text: compactText(stringOrDefault(scene.text, ""), maxRecentSceneTextLength),
+        summary: compactText(stringOrDefault(scene.summary, ""), maxRecentSceneTextLength)
       }))
     : [];
 
   const cleanMemories = Array.isArray(memories)
     ? memories
         .filter((memory): memory is string => typeof memory === "string")
-        .map((memory) => memory.trim())
+        .map((memory) => compactText(memory, maxMemoryLength))
         .filter(Boolean)
-        .slice(-maxMemoryItems)
+        .slice(0, maxMemoryItems)
     : [];
 
   checks.push({
     id: "validation",
     status: "ok",
-    detail: `Accepted ${cleanCharacters.length} character(s), ${cleanRecentScenes.length} recent scene(s), and ${cleanMemories.length} memory note(s).`
+    detail: `Accepted ${cleanCharacters.length} character(s), ${cleanRecentScenes.length} compact recent scene(s), and ${cleanMemories.length} compact memory note(s).`
   });
 
   return {
@@ -307,28 +325,25 @@ You are the narrative engine for StoryMaker5000. Continue the user's long-form s
 Return only valid JSON using this exact shape:
 {
   "title": "Short scene title",
-  "scene": "Polished story prose, 500-900 words unless the user asks otherwise.",
+  "scene": "Polished story prose, 350-650 words unless the user asks otherwise.",
   "summary": "One paragraph summary of what changed.",
-  "memoryNotes": ["Important persistent fact 1", "Important persistent fact 2"],
-  "characterUpdates": ["Character change 1", "Character change 2"],
-  "timelineUpdates": ["Timeline event 1", "Timeline event 2"],
-  "imagePrompt": "A visual scene prompt with setting, characters, mood, lighting, and style."
+  "memoryNotes": ["Only durable new fact 1", "Only durable new fact 2"],
+  "characterUpdates": ["Only important character change 1"],
+  "timelineUpdates": ["Only important timeline event 1"],
+  "imagePrompt": "One compact visual prompt under 320 characters: setting, characters, mood, lighting, composition."
 }
 
 Rules:
 - Respect the user's prompt, but preserve continuity with the scenario notes.
-- Treat this as mature adult fiction: prioritize believable psychology, consent, emotional tension, privacy, and consequences.
 - Follow the story generation guardrails when writing scene prose.
-- Follow the picture generation guardrails when writing the imagePrompt only.
+- Keep output concise. Do not restate background unless it changes this scene.
+- Keep imagePrompt compact; the image backend applies picture guardrails separately.
 - If multiple characters are present, keep voices distinct.
 - Do not mention that you are an AI model.
 - Do not include markdown fences.
 
 Story generation guardrails:
 ${backendStoryInstructions}
-
-Picture generation guardrails:
-${backendPictureInstructions}
 
 Story:
 ${JSON.stringify(body.story, null, 2)}
@@ -340,7 +355,7 @@ Recent scenes:
 ${JSON.stringify(body.recentScenes, null, 2)}
 
 Long-term memory:
-${JSON.stringify(body.memories.slice(-30), null, 2)}
+${JSON.stringify(body.memories, null, 2)}
 
 User prompt:
 ${body.prompt}
@@ -389,13 +404,20 @@ function validateStoryResponse(body: unknown, checks: GatewayCheck[]) {
     body: {
       title: stringOrDefault(body.title, "Untitled scene"),
       scene,
-      summary: stringOrDefault(body.summary, "The story moved forward."),
-      memoryNotes: stringArray(body.memoryNotes).slice(0, 6),
-      characterUpdates: stringArray(body.characterUpdates).slice(0, 6),
-      timelineUpdates: stringArray(body.timelineUpdates).slice(0, 6),
-      imagePrompt: stringOrDefault(
-        body.imagePrompt,
-        "Cinematic story scene illustration with expressive lighting."
+      summary: compactText(stringOrDefault(body.summary, "The story moved forward."), 500),
+      memoryNotes: stringArray(body.memoryNotes).map((item) => compactText(item, 180)).slice(0, 3),
+      characterUpdates: stringArray(body.characterUpdates)
+        .map((item) => compactText(item, 180))
+        .slice(0, 3),
+      timelineUpdates: stringArray(body.timelineUpdates)
+        .map((item) => compactText(item, 180))
+        .slice(0, 3),
+      imagePrompt: compactText(
+        stringOrDefault(
+          body.imagePrompt,
+          "Cinematic story scene illustration with expressive lighting."
+        ),
+        320
       )
     }
   };
@@ -462,6 +484,14 @@ function isNonEmptyString(value: unknown): value is string {
 
 function stringOrDefault(value: unknown, fallback: string) {
   return typeof value === "string" && value.trim() ? value.trim() : fallback;
+}
+
+function compactText(value: string, maxLength: number) {
+  const clean = value.replace(/\s+/g, " ").trim();
+
+  if (clean.length <= maxLength) return clean;
+
+  return `${clean.slice(0, Math.max(0, maxLength - 3)).trim()}...`;
 }
 
 function stringArray(value: unknown) {
