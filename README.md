@@ -30,6 +30,8 @@ Start the app:
 npm.cmd run dev
 ```
 
+The dev/start scripts set `NODE_OPTIONS=--use-system-ca` so Node can use the Windows certificate store when calling OpenAI over HTTPS.
+
 Open the local URL on your computer:
 
 ```text
@@ -133,7 +135,7 @@ By default, the app uses mock mode. That means:
 - The full UI workflow can still be tested.
 - Gateway checks will show mock or warning status where live providers are not configured.
 
-## Live providers
+## Live provider
 
 Copy the example environment file:
 
@@ -141,32 +143,62 @@ Copy the example environment file:
 Copy-Item .env.example .env.local
 ```
 
-Story generation options:
+This stage uses OpenAI only. Keep other providers out of the app until there is a strong reason to add more complexity.
+
+Story generation:
 
 ```text
 STORY_PROVIDER=mock
 STORY_PROVIDER=openai
-STORY_PROVIDER=gemini
 ```
 
-Image generation options:
+Image generation:
 
 ```text
 IMAGE_PROVIDER=mock
 IMAGE_PROVIDER=openai
-IMAGE_PROVIDER=cloudflare
 ```
 
-Required keys depend on the provider:
+Required key:
 
 ```text
 OPENAI_API_KEY=
-GEMINI_API_KEY=
-CLOUDFLARE_ACCOUNT_ID=
-CLOUDFLARE_API_TOKEN=
 ```
 
-Keep real keys in `.env.local` only.
+Recommended OpenAI models:
+
+```text
+OPENAI_MODEL=gpt-5.4-mini
+OPENAI_IMAGE_MODEL=gpt-image-2
+```
+
+Use `gpt-5.4-mini` for regular local testing because it is a stronger cost/latency fit. Switch `OPENAI_MODEL` to `gpt-5.5` when you want the highest-quality story reasoning and are comfortable with higher cost. Keep real keys in `.env.local` only.
+
+## Backend API check
+
+For OpenAI live mode, create or edit `.env.local`:
+
+```text
+STORY_PROVIDER=openai
+IMAGE_PROVIDER=openai
+OPENAI_API_KEY=your_key_here
+OPENAI_MODEL=gpt-5.4-mini
+OPENAI_IMAGE_MODEL=gpt-image-2
+```
+
+Restart the dev server after changing `.env.local`:
+
+```powershell
+npm.cmd run dev
+```
+
+Then run the backend smoke check in a second terminal:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/check-api.ps1
+```
+
+The health route should show the story and image gateways as configured. The smoke check will call both API routes and report whether each gateway is using `live` or `mock` mode.
 
 ## Validation gates
 

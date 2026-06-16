@@ -86,10 +86,7 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const result =
-      provider === "openai"
-        ? await generateWithOpenAI(body, checks)
-        : await generateWithGemini(body, checks);
+    const result = await generateWithOpenAI(body, checks);
 
     const responseValidation = validateStoryResponse(result, checks);
 
@@ -238,34 +235,16 @@ function getStoryProvider(checks: GatewayCheck[]) {
     checks.push({
       id: "configuration",
       status: "ok",
-      detail: `OpenAI story provider is configured with ${process.env.OPENAI_MODEL || "gpt-5-mini"}.`
+      detail: `OpenAI story provider is configured with ${process.env.OPENAI_MODEL || "gpt-5.4-mini"}.`
     });
     return "openai";
-  }
-
-  if (provider === "gemini") {
-    if (!process.env.GEMINI_API_KEY) {
-      checks.push({
-        id: "configuration",
-        status: "warning",
-        detail: "STORY_PROVIDER=gemini, but GEMINI_API_KEY is missing."
-      });
-      return "mock";
-    }
-
-    checks.push({
-      id: "configuration",
-      status: "ok",
-      detail: `Gemini story provider is configured with ${process.env.GEMINI_MODEL || "gemini-2.5-flash"}.`
-    });
-    return "gemini";
   }
 
   if (provider !== "mock") {
     checks.push({
       id: "configuration",
       status: "warning",
-      detail: `Unknown STORY_PROVIDER "${provider}". Falling back to mock mode.`
+      detail: `Unknown STORY_PROVIDER "${provider}". Use "openai" or "mock". Falling back to mock mode.`
     });
   }
 
@@ -280,7 +259,7 @@ async function generateWithOpenAI(body: StoryRequest, checks: GatewayCheck[]) {
       "Content-Type": "application/json"
     },
     body: JSON.stringify({
-      model: process.env.OPENAI_MODEL || "gpt-5-mini",
+      model: process.env.OPENAI_MODEL || "gpt-5.4-mini",
       input: buildInstruction(body),
       text: {
         format: {
@@ -315,51 +294,6 @@ async function generateWithOpenAI(body: StoryRequest, checks: GatewayCheck[]) {
   }
 
   return parseProviderJson(raw, "OpenAI");
-}
-
-async function generateWithGemini(body: StoryRequest, checks: GatewayCheck[]) {
-  const model = process.env.GEMINI_MODEL || "gemini-2.5-flash";
-  const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${process.env.GEMINI_API_KEY}`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        contents: [
-          {
-            role: "user",
-            parts: [{ text: buildInstruction(body) }]
-          }
-        ],
-        generationConfig: {
-          temperature: 0.85,
-          responseMimeType: "application/json"
-        }
-      })
-    }
-  );
-
-  checks.push({
-    id: "provider-status",
-    status: response.ok ? "ok" : "error",
-    detail: `Gemini returned HTTP ${response.status}.`
-  });
-
-  const data = await response.json();
-
-  if (!response.ok) {
-    throw new Error(readProviderError(data, "Gemini rejected the story request."));
-  }
-
-  const raw = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-
-  if (!raw) {
-    throw new Error("Gemini returned an empty story response.");
-  }
-
-  return parseProviderJson(raw, "Gemini");
 }
 
 function buildInstruction(body: StoryRequest) {

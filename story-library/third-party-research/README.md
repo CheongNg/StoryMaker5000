@@ -6,3 +6,8 @@ Do not copy full story text, images, or protected files into this folder unless 
 
 Use links, short summaries, and your own notes instead.
 
+## Index files
+
+- `stories-illustrative-stories.md`: prose stories, illustrated stories, and story series
+- `adult-comics.md`: adult comics, manga-style pages, panel sequences, and visual storytelling references
+- `notes-template.md`: reusable template for deeper one-off research notes

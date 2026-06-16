@@ -62,10 +62,7 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const imageUrl =
-      provider === "openai"
-        ? await generateWithOpenAI(imageRequest.value, checks)
-        : await generateWithCloudflare(imageRequest.value, checks);
+    const imageUrl = await generateWithOpenAI(imageRequest.value, checks);
 
     checks.push({
       id: "response-shape",
@@ -272,30 +269,11 @@ function getImageProvider(checks: GatewayCheck[]) {
     return "openai";
   }
 
-  if (provider === "cloudflare") {
-    if (!process.env.CLOUDFLARE_ACCOUNT_ID || !process.env.CLOUDFLARE_API_TOKEN) {
-      checks.push({
-        id: "configuration",
-        status: "warning",
-        detail:
-          "IMAGE_PROVIDER=cloudflare, but CLOUDFLARE_ACCOUNT_ID or CLOUDFLARE_API_TOKEN is missing."
-      });
-      return "mock";
-    }
-
-    checks.push({
-      id: "configuration",
-      status: "ok",
-      detail: `Cloudflare image provider is configured with ${process.env.CLOUDFLARE_IMAGE_MODEL || "@cf/black-forest-labs/flux-1-schnell"}.`
-    });
-    return "cloudflare";
-  }
-
   if (provider !== "mock") {
     checks.push({
       id: "configuration",
       status: "warning",
-      detail: `Unknown IMAGE_PROVIDER "${provider}". Falling back to mock mode.`
+      detail: `Unknown IMAGE_PROVIDER "${provider}". Use "openai" or "mock". Falling back to mock mode.`
     });
   }
 
@@ -401,70 +379,6 @@ async function generateWithOpenAIReferences(
   }
 
   throw new Error("OpenAI returned an unsupported reference image response.");
-}
-
-async function generateWithCloudflare(
-  imageRequest: ValidImageRequest,
-  checks: GatewayCheck[]
-) {
-  if (imageRequest.referenceImages.length > 0) {
-    checks.push({
-      id: "reference-images",
-      status: "warning",
-      detail:
-        "Cloudflare image generation does not use the uploaded image bytes in this MVP; character references were folded into the prompt text."
-    });
-  }
-
-  const model =
-    process.env.CLOUDFLARE_IMAGE_MODEL || "@cf/black-forest-labs/flux-1-schnell";
-  const response = await fetch(
-    `https://api.cloudflare.com/client/v4/accounts/${process.env.CLOUDFLARE_ACCOUNT_ID}/ai/run/${model}`,
-    {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${process.env.CLOUDFLARE_API_TOKEN}`,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({ prompt: imageRequest.prompt })
-    }
-  );
-
-  checks.push({
-    id: "provider-status",
-    status: response.ok ? "ok" : "error",
-    detail: `Cloudflare returned HTTP ${response.status}.`
-  });
-
-  const contentType = response.headers.get("content-type") || "";
-
-  if (!response.ok) {
-    const errorBody = contentType.includes("application/json")
-      ? await response.json()
-      : undefined;
-    throw new Error(
-      readProviderError(errorBody, "Cloudflare rejected the image request.")
-    );
-  }
-
-  if (contentType.includes("image/")) {
-    const arrayBuffer = await response.arrayBuffer();
-    const base64 = Buffer.from(arrayBuffer).toString("base64");
-    return `data:${contentType};base64,${base64}`;
-  }
-
-  const data = await response.json();
-  const image =
-    data?.result?.image ||
-    data?.result?.images?.[0] ||
-    data?.image ||
-    data?.images?.[0];
-
-  if (typeof image === "string") {
-    return image.startsWith("data:") ? image : `data:image/png;base64,${image}`;
-  }
-
-  throw new Error("Cloudflare returned an unsupported image response.");
 }
 
 function createPlaceholder(prompt: string, referenceImages: ReferenceImage[]) {

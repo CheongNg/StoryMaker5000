@@ -5,13 +5,11 @@ export const dynamic = "force-dynamic";
 export function GET() {
   const storyProvider = normalizeProvider(process.env.STORY_PROVIDER, [
     "mock",
-    "openai",
-    "gemini"
+    "openai"
   ]);
   const imageProvider = normalizeProvider(process.env.IMAGE_PROVIDER, [
     "mock",
-    "openai",
-    "cloudflare"
+    "openai"
   ]);
 
   return NextResponse.json({
@@ -60,24 +58,6 @@ function normalizeProvider(value: string | undefined, allowed: string[]) {
     return {
       status: "warning",
       detail: "OpenAI is selected, but OPENAI_API_KEY is missing."
-    };
-  }
-
-  if (provider === "gemini" && !process.env.GEMINI_API_KEY) {
-    return {
-      status: "warning",
-      detail: "Gemini is selected, but GEMINI_API_KEY is missing."
-    };
-  }
-
-  if (
-    provider === "cloudflare" &&
-    (!process.env.CLOUDFLARE_ACCOUNT_ID || !process.env.CLOUDFLARE_API_TOKEN)
-  ) {
-    return {
-      status: "warning",
-      detail:
-        "Cloudflare is selected, but CLOUDFLARE_ACCOUNT_ID or CLOUDFLARE_API_TOKEN is missing."
     };
   }
 
