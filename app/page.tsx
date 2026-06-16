@@ -97,6 +97,8 @@ export default function Home() {
   );
   const [busy, setBusy] = useState(false);
   const [imageBusyId, setImageBusyId] = useState<string | null>(null);
+  const [operationStartedAt, setOperationStartedAt] = useState<number | null>(null);
+  const [elapsedTick, setElapsedTick] = useState(Date.now());
   const [notice, setNotice] = useState("");
   const [gateway, setGateway] = useState<GatewayReport>({ checks: [] });
   const [healthChecks, setHealthChecks] = useState<GatewayCheck[]>([]);
@@ -140,7 +142,7 @@ export default function Home() {
       if (!saved) return;
 
       const parsed = JSON.parse(saved);
-      setStory(parsed.story || defaultStory);
+      setStory(normalizeStory(parsed.story));
       setCharacters(parsed.characters || starterCharacters);
       setScenes(parsed.scenes || []);
       setPrompt(parsed.prompt || "");
@@ -181,6 +183,15 @@ export default function Home() {
     }
   }, []);
 
+  useEffect(() => {
+    if (!busy && !imageBusyId) return;
+
+    setElapsedTick(Date.now());
+    const timer = window.setInterval(() => setElapsedTick(Date.now()), 1000);
+
+    return () => window.clearInterval(timer);
+  }, [busy, imageBusyId]);
+
   const memories = useMemo(
     () =>
       scenes.flatMap((scene) => [
@@ -194,7 +205,11 @@ export default function Home() {
 
   const chatScenes = useMemo(() => [...scenes].reverse(), [scenes]);
   const latestScene = scenes[0];
+  const imageBusyScene = scenes.find((scene) => scene.id === imageBusyId);
   const imageBusy = Boolean(imageBusyId);
+  const elapsedSeconds = operationStartedAt
+    ? Math.max(1, Math.round((elapsedTick - operationStartedAt) / 1000))
+    : 0;
 
   const localChecks = useMemo(() => {
     const checks: GatewayCheck[] = [storageStatus];
@@ -257,6 +272,7 @@ export default function Home() {
     }
 
     setBusy(true);
+    setOperationStartedAt(Date.now());
     setNotice("");
 
     try {
@@ -284,7 +300,7 @@ export default function Home() {
       }
 
       const nextScene: Scene = {
-        id: crypto.randomUUID(),
+        id: createId("scene"),
         userPrompt: prompt,
         title: data.title || "Untitled scene",
         text: data.scene || "",
@@ -309,6 +325,7 @@ export default function Home() {
       setNotice(caught instanceof Error ? caught.message : "Something went wrong.");
     } finally {
       setBusy(false);
+      setOperationStartedAt(null);
       refreshHealth();
     }
   }
@@ -329,6 +346,7 @@ export default function Home() {
     }
 
     setImageBusyId(scene.id);
+    setOperationStartedAt(Date.now());
     setNotice("");
 
     try {
@@ -349,7 +367,11 @@ export default function Home() {
       setGateway(data.gateway || { checks: [] });
 
       if (!response.ok || data.error || !data.imageUrl) {
-        throw new Error(data.error || "The scene image could not be generated.");
+        throw new Error(
+          getGatewayProblem(data.gateway) ||
+            data.error ||
+            "The scene image could not be generated."
+        );
       }
 
       setScenes((current) =>
@@ -363,6 +385,7 @@ export default function Home() {
       setNotice(caught instanceof Error ? caught.message : "Something went wrong.");
     } finally {
       setImageBusyId(null);
+      setOperationStartedAt(null);
       refreshHealth();
     }
   }
@@ -381,7 +404,7 @@ export default function Home() {
     setCharacters((current) => [
       ...current,
       {
-        id: crypto.randomUUID(),
+        id: createId("character"),
         name: "New character",
         role: "Supporting character",
         personality: "",
@@ -441,6 +464,12 @@ export default function Home() {
   }
 
   function resetDraft() {
+    const shouldReset = window.confirm(
+      "Reset this story? This will clear the current scenes, prompt, and scenario setup."
+    );
+
+    if (!shouldReset) return;
+
     setStory(defaultStory);
     setCharacters(starterCharacters);
     setScenes([]);
@@ -495,44 +524,82 @@ export default function Home() {
             Story Chat
           </h3>
           <div className="chat-log">
-            {chatScenes.length === 0 ? (
+            {chatScenes.length === 0 && !busy && !imageBusy && !notice ? (
               <div className="empty-chat">
                 <strong>No messages yet</strong>
                 <span>Submit a prompt to start the scenario.</span>
               </div>
             ) : (
-              chatScenes.map((scene) => (
-                <div className="chat-pair" key={scene.id}>
-                  <article className="message user-message">
-                    <div className="message-label">You</div>
-                    <p>{scene.userPrompt || "Continue the story."}</p>
-                  </article>
+              <>
+              {chatScenes.map((scene) => (
+                  <div className="chat-pair" key={scene.id}>
+                    <article className="message user-message">
+                      <div className="message-label">You</div>
+                      <p>{scene.userPrompt || "Continue the story."}</p>
+                    </article>
 
-                  <article className="message assistant-message">
-                    <div className="message-header">
-                      <div>
-                        <div className="message-label">StoryMaker</div>
-                        <h3>{scene.title}</h3>
+                    <article className="message assistant-message">
+                      <div className="message-header">
+                        <div>
+                          <div className="message-label">StoryMaker</div>
+                          <h3>{scene.title}</h3>
+                        </div>
+                        <span className="scene-meta">
+                          {new Date(scene.createdAt).toLocaleTimeString([], {
+                            hour: "2-digit",
+                            minute: "2-digit"
+                          })}
+                        </span>
                       </div>
-                      <span className="scene-meta">
-                        {new Date(scene.createdAt).toLocaleTimeString([], {
-                          hour: "2-digit",
-                          minute: "2-digit"
-                        })}
-                      </span>
-                    </div>
-                    <p className="scene-text">{scene.text}</p>
-                    {scene.imageUrl ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        className="scene-image chat-image"
-                        src={scene.imageUrl}
-                        alt={`Generated art for ${scene.title}`}
-                      />
-                    ) : null}
+                      <p className="scene-text">{scene.text}</p>
+                      {scene.imageUrl ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          className="scene-image chat-image"
+                          src={scene.imageUrl}
+                          alt={`Generated art for ${scene.title}`}
+                        />
+                      ) : null}
+                    </article>
+                  </div>
+                ))}
+              {busy ? (
+                <div className="chat-pair" key="story-progress">
+                  <article className="message user-message pending-message">
+                    <div className="message-label">You</div>
+                    <p>{prompt}</p>
                   </article>
+                  <ProgressMessage
+                    title="Writing scene"
+                    detail={`StoryMaker is sending the prompt to OpenAI and drafting the next scene. ${formatElapsed(elapsedSeconds)} elapsed.`}
+                    steps={[
+                      "Checking story context",
+                      "Generating prose",
+                      "Preparing memory notes"
+                    ]}
+                  />
                 </div>
-              ))
+              ) : null}
+              {imageBusy && imageBusyScene ? (
+                <ProgressMessage
+                  key="image-progress"
+                  title="Creating image"
+                  detail={`Image generation is working on "${imageBusyScene.title}". ${formatElapsed(elapsedSeconds)} elapsed. Image calls can take around 1-2 minutes, especially with character references.`}
+                  steps={[
+                    "Sending scene prompt",
+                    "Rendering draft image",
+                    "Returning image to chat"
+                  ]}
+                />
+              ) : null}
+              {notice ? (
+                <article className="message assistant-message status-message error-message">
+                  <div className="message-label">Status</div>
+                  <h3>Needs attention</h3>
+                  <p>{notice}</p>
+                </article>
+              ) : null}
+              </>
             )}
           </div>
         </section>
@@ -548,6 +615,14 @@ export default function Home() {
             placeholder="Write what should happen next..."
           />
           <div className="action-bar">
+            <button
+              className="button danger"
+              type="button"
+              disabled={busy || imageBusy}
+              onClick={resetDraft}
+            >
+              Reset Story
+            </button>
             <button
               className="button primary"
               type="button"
@@ -828,6 +903,38 @@ function CheckList({
   );
 }
 
+function ProgressMessage({
+  title,
+  detail,
+  steps
+}: {
+  title: string;
+  detail: string;
+  steps: string[];
+}) {
+  return (
+    <article className="message assistant-message status-message">
+      <div className="message-header">
+        <div>
+          <div className="message-label">StoryMaker</div>
+          <h3>{title}</h3>
+        </div>
+        <span className="typing-dots" aria-hidden="true">
+          <span />
+          <span />
+          <span />
+        </span>
+      </div>
+      <p>{detail}</p>
+      <ul className="progress-steps">
+        {steps.map((step) => (
+          <li key={step}>{step}</li>
+        ))}
+      </ul>
+    </article>
+  );
+}
+
 function ProviderBadge({ gateway }: { gateway: GatewayReport }) {
   const provider = gateway.provider || "none";
   const mode = gateway.mode || "idle";
@@ -851,6 +958,15 @@ function summarizeChecks(checks: GatewayCheck[]) {
   if (warning) return warning.detail;
   if (checks.length > 0) return "Ready.";
   return "Waiting for first request.";
+}
+
+function getGatewayProblem(gateway?: GatewayReport) {
+  const checks = gateway?.checks || [];
+  const providerError = checks.find((check) => check.id === "provider-response");
+  const error = providerError || checks.find((check) => check.status === "error");
+  const warning = checks.find((check) => check.status === "warning");
+
+  return error?.detail || warning?.detail || "";
 }
 
 function buildImagePrompt(
@@ -907,4 +1023,44 @@ function compactSummary(value: string) {
   if (value.length <= maxLength) return value;
 
   return `Earlier summary trimmed.\n\n${value.slice(value.length - maxLength)}`;
+}
+
+function normalizeStory(value: unknown): Story {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return defaultStory;
+  }
+
+  return {
+    ...defaultStory,
+    ...(value as Partial<Story>)
+  };
+}
+
+function formatElapsed(seconds: number) {
+  if (seconds < 60) return `${seconds}s`;
+
+  const minutes = Math.floor(seconds / 60);
+  const remainingSeconds = seconds % 60;
+  return `${minutes}m ${remainingSeconds}s`;
+}
+
+function createId(prefix: string) {
+  if (
+    typeof window !== "undefined" &&
+    window.crypto &&
+    typeof window.crypto.randomUUID === "function"
+  ) {
+    return window.crypto.randomUUID();
+  }
+
+  const randomPart =
+    typeof window !== "undefined" &&
+    window.crypto &&
+    typeof window.crypto.getRandomValues === "function"
+      ? Array.from(window.crypto.getRandomValues(new Uint32Array(2)))
+          .map((value) => value.toString(36))
+          .join("")
+      : Math.random().toString(36).slice(2);
+
+  return `${prefix}-${Date.now().toString(36)}-${randomPart}`;
 }

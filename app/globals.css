@@ -598,6 +598,20 @@ textarea:focus {
   justify-self: start;
 }
 
+.status-message {
+  border-color: color-mix(in srgb, var(--accent) 22%, var(--line));
+  background: color-mix(in srgb, var(--panel) 86%, var(--accent-soft));
+}
+
+.pending-message {
+  opacity: 0.9;
+}
+
+.error-message {
+  border-color: color-mix(in srgb, var(--danger) 45%, var(--line));
+  background: color-mix(in srgb, var(--danger) 10%, var(--panel));
+}
+
 .message-header {
   display: flex;
   justify-content: space-between;
@@ -614,6 +628,63 @@ textarea:focus {
   font-size: 0.78rem;
   font-weight: 800;
   text-transform: uppercase;
+}
+
+.typing-dots {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 34px;
+  padding-top: 7px;
+}
+
+.typing-dots span {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: var(--accent);
+  animation: typingPulse 1.1s infinite ease-in-out;
+}
+
+.typing-dots span:nth-child(2) {
+  animation-delay: 140ms;
+}
+
+.typing-dots span:nth-child(3) {
+  animation-delay: 280ms;
+}
+
+.progress-steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.progress-steps li {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--muted);
+  background: color-mix(in srgb, var(--paper) 48%, var(--panel));
+  padding: 5px 8px;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+@keyframes typingPulse {
+  0%,
+  80%,
+  100% {
+    transform: translateY(0);
+    opacity: 0.45;
+  }
+
+  40% {
+    transform: translateY(-3px);
+    opacity: 1;
+  }
 }
 
 .chat-image {

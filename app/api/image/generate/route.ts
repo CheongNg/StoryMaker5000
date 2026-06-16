@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { backendPictureInstructions } from "../../instructions";
 
 type GatewayCheck = {
   id: string;
@@ -18,7 +19,16 @@ type ValidImageRequest = {
 
 const maxImagePromptLength = 2500;
 const maxReferenceImages = 6;
+const maxGrokReferenceImages = 3;
 const maxReferenceImageLength = 1_600_000;
+const defaultImageSize = "1024x1024";
+const defaultImageQuality = "low";
+const defaultImageFormat = "jpeg";
+const defaultImageCompression = 80;
+const defaultReferenceFallback = true;
+const defaultGrokImageModel = "grok-imagine-image-quality";
+const defaultGrokAspectRatio = "16:9";
+const defaultGrokResolution = "1k";
 
 export const dynamic = "force-dynamic";
 
@@ -62,12 +72,21 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const imageUrl = await generateWithOpenAI(imageRequest.value, checks);
+    const startedAt = Date.now();
+    const imageUrl =
+      provider === "grok"
+        ? await generateWithGrok(imageRequest.value, checks)
+        : await generateWithOpenAI(imageRequest.value, checks);
 
     checks.push({
       id: "response-shape",
       status: "ok",
       detail: "The image provider returned an image payload the app can display."
+    });
+    checks.push({
+      id: "latency",
+      status: "ok",
+      detail: `Image generation completed in ${formatDuration(Date.now() - startedAt)}.`
     });
 
     return NextResponse.json({
@@ -162,7 +181,7 @@ function validateImageRequest(body: unknown, checks: GatewayCheck[]) {
   return {
     ok: true as const,
     value: {
-      prompt,
+      prompt: withBackendPictureLayer(prompt),
       referenceImages: referenceImages.value
     }
   };
@@ -251,6 +270,24 @@ function validateReferenceImages(value: unknown, checks: GatewayCheck[]) {
 function getImageProvider(checks: GatewayCheck[]) {
   const provider = (process.env.IMAGE_PROVIDER || "mock").toLowerCase();
 
+  if (provider === "grok" || provider === "xai") {
+    if (!process.env.XAI_API_KEY) {
+      checks.push({
+        id: "configuration",
+        status: "warning",
+        detail: "IMAGE_PROVIDER=grok, but XAI_API_KEY is missing."
+      });
+      return "mock";
+    }
+
+    checks.push({
+      id: "configuration",
+      status: "ok",
+      detail: `Grok Imagine image provider is configured with ${getGrokImageModel()} at ${getGrokResolution()} ${getGrokAspectRatio()}.`
+    });
+    return "grok";
+  }
+
   if (provider === "openai") {
     if (!process.env.OPENAI_API_KEY) {
       checks.push({
@@ -264,7 +301,7 @@ function getImageProvider(checks: GatewayCheck[]) {
     checks.push({
       id: "configuration",
       status: "ok",
-      detail: `OpenAI image provider is configured with ${process.env.OPENAI_IMAGE_MODEL || "gpt-image-2"}.`
+      detail: `OpenAI image provider is configured with ${process.env.OPENAI_IMAGE_MODEL || "gpt-image-2"} using ${getImageQuality()} quality and ${getImageFormat().toUpperCase()} output.`
     });
     return "openai";
   }
@@ -273,7 +310,7 @@ function getImageProvider(checks: GatewayCheck[]) {
     checks.push({
       id: "configuration",
       status: "warning",
-      detail: `Unknown IMAGE_PROVIDER "${provider}". Use "openai" or "mock". Falling back to mock mode.`
+      detail: `Unknown IMAGE_PROVIDER "${provider}". Use "grok", "openai", or "mock". Falling back to mock mode.`
     });
   }
 
@@ -285,9 +322,151 @@ async function generateWithOpenAI(
   checks: GatewayCheck[]
 ) {
   if (imageRequest.referenceImages.length > 0) {
-    return generateWithOpenAIReferences(imageRequest, checks);
+    try {
+      return await generateWithOpenAIReferences(imageRequest, checks);
+    } catch (caught) {
+      if (!shouldFallbackWithoutReferences("openai")) {
+        throw caught;
+      }
+
+      checks.push({
+        id: "reference-fallback",
+        status: "warning",
+        detail:
+          caught instanceof Error
+            ? `Reference image generation failed, so the gateway retried without character pictures. Provider detail: ${caught.message}`
+            : "Reference image generation failed, so the gateway retried without character pictures."
+      });
+
+      return generateWithOpenAIBase(imageRequest.prompt, checks);
+    }
   }
 
+  return generateWithOpenAIBase(imageRequest.prompt, checks);
+}
+
+async function generateWithGrok(
+  imageRequest: ValidImageRequest,
+  checks: GatewayCheck[]
+) {
+  if (imageRequest.referenceImages.length > 0) {
+    try {
+      return await generateWithGrokReferences(imageRequest, checks);
+    } catch (caught) {
+      if (!shouldFallbackWithoutReferences("grok")) {
+        throw caught;
+      }
+
+      checks.push({
+        id: "reference-fallback",
+        status: "warning",
+        detail:
+          caught instanceof Error
+            ? `Grok reference image generation failed, so the gateway retried without character pictures. Provider detail: ${caught.message}`
+            : "Grok reference image generation failed, so the gateway retried without character pictures."
+      });
+
+      return generateWithGrokBase(imageRequest.prompt, checks);
+    }
+  }
+
+  return generateWithGrokBase(imageRequest.prompt, checks);
+}
+
+async function generateWithGrokBase(prompt: string, checks: GatewayCheck[]) {
+  const response = await fetch("https://api.x.ai/v1/images/generations", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${process.env.XAI_API_KEY}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      model: getGrokImageModel(),
+      prompt,
+      n: 1,
+      aspect_ratio: getGrokAspectRatio(),
+      resolution: getGrokResolution(),
+      response_format: "b64_json"
+    })
+  });
+
+  checks.push({
+    id: "provider-status",
+    status: response.ok ? "ok" : "error",
+    detail: `Grok Images returned HTTP ${response.status}.`
+  });
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(readProviderError(data, "Grok rejected the image request."));
+  }
+
+  return readImageResult(data, "Grok returned an unsupported image response.");
+}
+
+async function generateWithGrokReferences(
+  imageRequest: ValidImageRequest,
+  checks: GatewayCheck[]
+) {
+  const references = imageRequest.referenceImages.slice(0, maxGrokReferenceImages);
+
+  if (imageRequest.referenceImages.length > maxGrokReferenceImages) {
+    checks.push({
+      id: "reference-images",
+      status: "warning",
+      detail: `Grok image editing supports up to ${maxGrokReferenceImages} reference image(s), so only the first ${maxGrokReferenceImages} were sent.`
+    });
+  }
+
+  const imageObjects = references.map((reference) => ({
+    type: "image_url",
+    url: reference.imageUrl
+  }));
+  const payload =
+    imageObjects.length === 1
+      ? {
+          model: getGrokImageModel(),
+          prompt: imageRequest.prompt,
+          image: imageObjects[0],
+          aspect_ratio: getGrokAspectRatio(),
+          resolution: getGrokResolution(),
+          response_format: "b64_json"
+        }
+      : {
+          model: getGrokImageModel(),
+          prompt: imageRequest.prompt,
+          images: imageObjects,
+          aspect_ratio: getGrokAspectRatio(),
+          resolution: getGrokResolution(),
+          response_format: "b64_json"
+        };
+
+  const response = await fetch("https://api.x.ai/v1/images/edits", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${process.env.XAI_API_KEY}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(payload)
+  });
+
+  checks.push({
+    id: "provider-status",
+    status: response.ok ? "ok" : "error",
+    detail: `Grok image references returned HTTP ${response.status}.`
+  });
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(readProviderError(data, "Grok rejected the reference image request."));
+  }
+
+  return readImageResult(data, "Grok returned an unsupported reference image response.");
+}
+
+async function generateWithOpenAIBase(prompt: string, checks: GatewayCheck[]) {
   const response = await fetch("https://api.openai.com/v1/images/generations", {
     method: "POST",
     headers: {
@@ -296,8 +475,11 @@ async function generateWithOpenAI(
     },
     body: JSON.stringify({
       model: process.env.OPENAI_IMAGE_MODEL || "gpt-image-2",
-      prompt: imageRequest.prompt,
-      size: "1024x1024"
+      prompt,
+      size: defaultImageSize,
+      quality: getImageQuality(),
+      output_format: getImageFormat(),
+      output_compression: getImageCompression()
     })
   });
 
@@ -317,7 +499,7 @@ async function generateWithOpenAI(
   const url = data?.data?.[0]?.url;
 
   if (typeof base64 === "string") {
-    return `data:image/png;base64,${base64}`;
+    return toDataImageUrl(base64);
   }
 
   if (typeof url === "string") {
@@ -335,7 +517,10 @@ async function generateWithOpenAIReferences(
 
   form.append("model", process.env.OPENAI_IMAGE_MODEL || "gpt-image-2");
   form.append("prompt", imageRequest.prompt);
-  form.append("size", "1024x1024");
+  form.append("size", defaultImageSize);
+  form.append("quality", getImageQuality());
+  form.append("output_format", getImageFormat());
+  form.append("output_compression", String(getImageCompression()));
 
   imageRequest.referenceImages.forEach((reference, index) => {
     const file = dataUrlToFile(
@@ -371,7 +556,7 @@ async function generateWithOpenAIReferences(
   const url = data?.data?.[0]?.url;
 
   if (typeof base64 === "string") {
-    return `data:image/png;base64,${base64}`;
+    return toDataImageUrl(base64);
   }
 
   if (typeof url === "string") {
@@ -415,6 +600,10 @@ function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+function withBackendPictureLayer(prompt: string) {
+  return `${prompt}\n\nPicture generation guardrails:\n${backendPictureInstructions}`;
+}
+
 function readProviderError(data: unknown, fallback: string) {
   if (!isObject(data)) return fallback;
 
@@ -429,6 +618,103 @@ function readProviderError(data: unknown, fallback: string) {
   }
 
   return fallback;
+}
+
+function readImageResult(data: unknown, fallback: string) {
+  if (!isObject(data)) {
+    throw new Error(fallback);
+  }
+
+  const first = Array.isArray(data.data) ? data.data[0] : undefined;
+
+  if (!isObject(first)) {
+    throw new Error(fallback);
+  }
+
+  if (typeof first.b64_json === "string") {
+    return toDataImageUrl(first.b64_json);
+  }
+
+  if (typeof first.url === "string") {
+    return first.url;
+  }
+
+  throw new Error(fallback);
+}
+
+function getGrokImageModel() {
+  return process.env.XAI_IMAGE_MODEL || defaultGrokImageModel;
+}
+
+function getGrokAspectRatio() {
+  const value = (process.env.XAI_IMAGE_ASPECT_RATIO || defaultGrokAspectRatio).trim();
+  const allowed = [
+    "1:1",
+    "16:9",
+    "9:16",
+    "4:3",
+    "3:4",
+    "3:2",
+    "2:3",
+    "2:1",
+    "1:2",
+    "19.5:9",
+    "9:19.5",
+    "20:9",
+    "9:20",
+    "auto"
+  ];
+
+  return allowed.includes(value) ? value : defaultGrokAspectRatio;
+}
+
+function getGrokResolution() {
+  const value = (process.env.XAI_IMAGE_RESOLUTION || defaultGrokResolution).toLowerCase();
+  return ["1k", "2k"].includes(value) ? value : defaultGrokResolution;
+}
+
+function getImageQuality() {
+  const value = (process.env.OPENAI_IMAGE_QUALITY || defaultImageQuality).toLowerCase();
+  return ["low", "medium", "high", "auto"].includes(value) ? value : defaultImageQuality;
+}
+
+function getImageFormat() {
+  const value = (process.env.OPENAI_IMAGE_FORMAT || defaultImageFormat).toLowerCase();
+  return ["png", "jpeg", "webp"].includes(value) ? value : defaultImageFormat;
+}
+
+function getImageCompression() {
+  const value = Number(process.env.OPENAI_IMAGE_COMPRESSION);
+
+  if (!Number.isFinite(value)) return defaultImageCompression;
+
+  return Math.min(100, Math.max(0, Math.round(value)));
+}
+
+function shouldFallbackWithoutReferences(provider: "openai" | "grok") {
+  const value = (
+    provider === "grok"
+      ? process.env.XAI_IMAGE_REFERENCE_FALLBACK
+      : process.env.OPENAI_IMAGE_REFERENCE_FALLBACK
+  )?.toLowerCase();
+
+  if (value === "false" || value === "0" || value === "off") return false;
+
+  return defaultReferenceFallback;
+}
+
+function toDataImageUrl(base64: string) {
+  return `data:image/${getImageFormat()};base64,${base64}`;
+}
+
+function formatDuration(milliseconds: number) {
+  const seconds = Math.max(1, Math.round(milliseconds / 1000));
+
+  if (seconds < 60) return `${seconds}s`;
+
+  const minutes = Math.floor(seconds / 60);
+  const remainingSeconds = seconds % 60;
+  return `${minutes}m ${remainingSeconds}s`;
 }
 
 function dataUrlToFile(dataUrl: string, filename: string) {

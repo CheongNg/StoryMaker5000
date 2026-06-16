@@ -1,4 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
+import {
+  backendPictureInstructions,
+  backendStoryInstructions
+} from "../../instructions";
 
 type Character = {
   id?: string;
@@ -314,9 +318,17 @@ Return only valid JSON using this exact shape:
 Rules:
 - Respect the user's prompt, but preserve continuity with the scenario notes.
 - Treat this as mature adult fiction: prioritize believable psychology, consent, emotional tension, privacy, and consequences.
+- Follow the story generation guardrails when writing scene prose.
+- Follow the picture generation guardrails when writing the imagePrompt only.
 - If multiple characters are present, keep voices distinct.
 - Do not mention that you are an AI model.
 - Do not include markdown fences.
+
+Story generation guardrails:
+${backendStoryInstructions}
+
+Picture generation guardrails:
+${backendPictureInstructions}
 
 Story:
 ${JSON.stringify(body.story, null, 2)}

@@ -143,7 +143,17 @@ Copy the example environment file:
 Copy-Item .env.example .env.local
 ```
 
-This stage uses OpenAI only. Keep other providers out of the app until there is a strong reason to add more complexity.
+This stage uses OpenAI for story generation. Image generation can use either OpenAI or Grok.
+
+## Backend instruction layer
+
+Core story and picture guardrails live in:
+
+```text
+app/api/instructions.ts
+```
+
+These backend instructions are applied automatically to every story and image request. Story and picture guardrails should be edited in this backend file instead of repeated in the frontend.
 
 Story generation:
 
@@ -157,12 +167,14 @@ Image generation:
 ```text
 IMAGE_PROVIDER=mock
 IMAGE_PROVIDER=openai
+IMAGE_PROVIDER=grok
 ```
 
 Required key:
 
 ```text
 OPENAI_API_KEY=
+XAI_API_KEY=
 ```
 
 Recommended OpenAI models:
@@ -172,18 +184,29 @@ OPENAI_MODEL=gpt-5.4-mini
 OPENAI_IMAGE_MODEL=gpt-image-2
 ```
 
-Use `gpt-5.4-mini` for regular local testing because it is a stronger cost/latency fit. Switch `OPENAI_MODEL` to `gpt-5.5` when you want the highest-quality story reasoning and are comfortable with higher cost. Keep real keys in `.env.local` only.
+Recommended Grok image model:
+
+```text
+XAI_IMAGE_MODEL=grok-imagine-image-quality
+XAI_IMAGE_ASPECT_RATIO=16:9
+XAI_IMAGE_RESOLUTION=1k
+```
+
+Use `gpt-5.4-mini` for regular local story testing because it is a stronger cost/latency fit. Switch `OPENAI_MODEL` to `gpt-5.5` when you want the highest-quality story reasoning and are comfortable with higher cost. Keep real keys in `.env.local` only.
 
 ## Backend API check
 
-For OpenAI live mode, create or edit `.env.local`:
+For OpenAI stories with Grok images, create or edit `.env.local`:
 
 ```text
 STORY_PROVIDER=openai
-IMAGE_PROVIDER=openai
+IMAGE_PROVIDER=grok
 OPENAI_API_KEY=your_key_here
+XAI_API_KEY=your_xai_key_here
 OPENAI_MODEL=gpt-5.4-mini
-OPENAI_IMAGE_MODEL=gpt-image-2
+XAI_IMAGE_MODEL=grok-imagine-image-quality
+XAI_IMAGE_ASPECT_RATIO=16:9
+XAI_IMAGE_RESOLUTION=1k
 ```
 
 Restart the dev server after changing `.env.local`:

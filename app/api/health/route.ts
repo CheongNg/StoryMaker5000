@@ -9,7 +9,9 @@ export function GET() {
   ]);
   const imageProvider = normalizeProvider(process.env.IMAGE_PROVIDER, [
     "mock",
-    "openai"
+    "openai",
+    "grok",
+    "xai"
   ]);
 
   return NextResponse.json({
@@ -58,6 +60,20 @@ function normalizeProvider(value: string | undefined, allowed: string[]) {
     return {
       status: "warning",
       detail: "OpenAI is selected, but OPENAI_API_KEY is missing."
+    };
+  }
+
+  if ((provider === "grok" || provider === "xai") && !process.env.XAI_API_KEY) {
+    return {
+      status: "warning",
+      detail: "Grok is selected, but XAI_API_KEY is missing."
+    };
+  }
+
+  if (provider === "xai") {
+    return {
+      status: "ok",
+      detail: "grok is configured."
     };
   }
 
