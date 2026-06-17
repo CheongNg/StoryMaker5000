@@ -813,6 +813,37 @@ select:focus {
   padding-left: 18px;
 }
 
+.preset-description {
+  margin: -2px 0 14px;
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.library-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.library-image-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.library-image-grid img {
+  width: 100%;
+  aspect-ratio: 1;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--paper);
+  object-fit: cover;
+}
+
 .option-row {
   display: flex;
   align-items: center;

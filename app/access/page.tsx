@@ -1,4 +1,7 @@
 import { AccessForm } from "./access-form";
+import { headers } from "next/headers";
+import { redirect } from "next/navigation";
+import { shouldRequireAccess } from "../../lib/access";
 
 type AccessPageProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
@@ -9,6 +12,10 @@ export default async function AccessPage({ searchParams }: AccessPageProps) {
   const rawReturnTo = stringParam(params.returnTo) || "/";
   const returnTo = rawReturnTo.startsWith("/") ? rawReturnTo : "/";
   const error = stringParam(params.error);
+
+  if (!shouldRequireAccess({ headers: await headers() })) {
+    redirect(returnTo);
+  }
 
   return (
     <main className="access-shell">

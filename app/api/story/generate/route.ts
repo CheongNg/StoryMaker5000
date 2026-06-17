@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { backendStoryInstructions } from "../../instructions";
 import {
   accessCookieName,
-  isAccessEnabled,
-  isValidAccessToken
+  isValidAccessToken,
+  shouldRequireAccess
 } from "../../../../lib/access";
 
 type Character = {
@@ -137,7 +137,7 @@ export async function POST(request: NextRequest) {
 
 async function isAccessRequired(request: NextRequest) {
   return (
-    isAccessEnabled() &&
+    shouldRequireAccess(request) &&
     !(await isValidAccessToken(request.cookies.get(accessCookieName)?.value))
   );
 }

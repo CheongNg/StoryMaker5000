@@ -1,0 +1,36 @@
+{
+  "id": "The Cult",
+  "label": "The Cult",
+  "description": "Adult contemporary drama with intimate tension, exploring desire, restraint, and the sense of running the family business.",
+  "story": {
+    "title": "The Cult",
+    "genre": "Adult drama",
+    "tone": "Intimate, grounded, emotionally charged, hesitance, reluctance, resist at first but surrender, forced proximity.",
+    "worldRules": "Keep the scenario character-led, mature, and psychologically believable. Focus on desire, tension, consent, consequences, and private motivations.",
+    "summary": "a womans desire to lead the family with right values, drawn into desires and forced to take extreme measures to shape the future of the family business."
+  },
+  "starterCharacters": [
+    {
+      "id": "Zoe",
+      "name": "Zoe Luvhugetits",
+      "importance": "Main",
+      "role": "Main character",
+      "personality": "likes her maiden name which is honeywilder, likes to appear religious, brenna's mom, Lexi's sister, submissive to her family wishes, desires to lead the family business with right values.",
+      "appearance": "tidy, sleek blonde short hair, tries to appear conservative in public, likes to wear white tank tops, large breasts",
+      "goals": "Family bonding, believes best to keep it in the family and take whatever means to do so",
+      "secrets": "Has secret fascination with female breasts, nipples and pubic hair, but is too ashamed to admit it to herself or anyone else."
+    },
+    {
+      "id": "Brenna",
+      "name": "Brenna Luvhugetits",
+      "importance": "Main",
+      "role": "Main character",
+      "personality": "quiet, obedient to her mom, submissive to her family wishes, zoe's daughter",
+      "appearance": "tidy, sleek blonde short hair, likes to wear white tank tops, not keen on bras, large breasts",
+      "goals": "Family bonding, believes best to keep it in the family and take whatever means to do so",
+      "secrets": "Has secret fascination with female breasts, nipples and pubic hair, but is too ashamed to admit it to herself or anyone else."
+    }
+
+  ],
+  "starterPrompt": "Zoe in the kitchen thinking about her life"
+}

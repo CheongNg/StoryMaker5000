@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { backendPictureInstructions } from "../../instructions";
 import {
   accessCookieName,
-  isAccessEnabled,
-  isValidAccessToken
+  isValidAccessToken,
+  shouldRequireAccess
 } from "../../../../lib/access";
 
 type GatewayCheck = {
@@ -118,7 +118,7 @@ export async function POST(request: NextRequest) {
 
 async function isAccessRequired(request: NextRequest) {
   return (
-    isAccessEnabled() &&
+    shouldRequireAccess(request) &&
     !(await isValidAccessToken(request.cookies.get(accessCookieName)?.value))
   );
 }

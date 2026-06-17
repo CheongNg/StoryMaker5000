@@ -10,7 +10,8 @@ import {
   getAccessAttemptStatus,
   getAccessSecretProblem,
   recordFailedAccessAttempt,
-  isAccessEnabled
+  isAccessEnabled,
+  shouldRequireAccess
 } from "../../../../lib/access";
 
 export const dynamic = "force-dynamic";
@@ -23,6 +24,13 @@ export async function POST(request: NextRequest) {
     .get("content-type")
     ?.toLowerCase()
     .includes("application/json") ?? false;
+  const submitted = await readSubmittedAccess(request, wantsJson);
+  const returnTo = normalizeReturnTo(submitted.returnTo);
+
+  if (!shouldRequireAccess(request)) {
+    return wantsJson ? NextResponse.json({ ok: true }) : redirectTo(returnTo);
+  }
+
   const configurationProblem = getAccessSecretProblem();
 
   if (!isAccessEnabled() || configurationProblem) {
@@ -30,7 +38,9 @@ export async function POST(request: NextRequest) {
       request,
       wantsJson,
       configurationProblem || "Online access is not configured.",
-      503
+      503,
+      undefined,
+      returnTo
     );
   }
 
@@ -47,9 +57,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const submitted = await readSubmittedAccess(request, wantsJson);
   const code = submitted.code;
-  const returnTo = normalizeReturnTo(submitted.returnTo);
   const validOneTimeCode = await consumeValidOneTimeCode(code);
 
   if (!validOneTimeCode) {

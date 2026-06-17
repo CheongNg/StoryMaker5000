@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
+import defaultPreset from "../story-library/presets/default-story.json";
 
 type Story = {
   title: string;
@@ -25,6 +26,15 @@ type Character = {
 };
 
 type CharacterImportance = "main" | "important" | "supporting";
+
+type StoryPreset = {
+  id: string;
+  label: string;
+  description: string;
+  story: Story;
+  starterCharacters: Character[];
+  starterPrompt: string;
+};
 
 type Scene = {
   id: string;
@@ -59,6 +69,24 @@ type LivingMemory = {
   updatedAt?: string;
 };
 
+type CoreMemoryImage = {
+  id: string;
+  title: string;
+  imageUrl: string;
+  capturedAt: string;
+};
+
+type CoreMemoryRecord = {
+  id: string;
+  title: string;
+  createdAt: string;
+  storyline: string;
+  keyCharacters: string[];
+  attitudeShifts: string[];
+  livingMemory: LivingMemory;
+  images: CoreMemoryImage[];
+};
+
 type GatewayCheck = {
   id: string;
   label?: string;
@@ -85,30 +113,8 @@ type StoryResponse = {
   error?: string;
 };
 
-const defaultStory: Story = {
-  title: "After Hours",
-  genre: "Adult contemporary drama",
-  tone: "Intimate, grounded, emotionally charged",
-  worldRules:
-    "Keep the scenario character-led, mature, and psychologically believable. Focus on desire, tension, consent, consequences, and private motivations.",
-  summary:
-    "Two adults are drawn into a complicated private situation where attraction, restraint, and old choices shape what happens next."
-};
-
-const starterCharacters: Character[] = [
-  {
-    id: "mira",
-    name: "Mira Vale",
-    importance: "main",
-    role: "Main character",
-    personality: "Observant, guarded, quietly direct when she feels safe",
-    appearance: "Shoulder-length dark hair, tailored coat, understated jewelry",
-    goals: "Understand what she wants without losing control of the situation",
-    secrets: "She is more emotionally invested than she admits"
-  }
-];
-
 const storageKey = "storymaker5000-state-v2";
+const coreLibraryKey = "storymaker5000-core-library-v1";
 const themeKey = "storymaker5000-theme";
 const defaultLivingMemory: LivingMemory = {
   facts: [],
@@ -117,6 +123,13 @@ const defaultLivingMemory: LivingMemory = {
   toneRules: [],
   continuityWarnings: []
 };
+const storyPresets: StoryPreset[] = [
+  normalizeStoryPreset(defaultPreset)
+];
+const defaultStoryPreset = storyPresets[0];
+const defaultStory: Story = defaultStoryPreset.story;
+const starterCharacters: Character[] = defaultStoryPreset.starterCharacters;
+const starterPrompt = defaultStoryPreset.starterPrompt;
 
 export default function Home() {
   const [story, setStory] = useState<Story>(defaultStory);
@@ -126,11 +139,10 @@ export default function Home() {
   );
   const [scenes, setScenes] = useState<Scene[]>([]);
   const [storyCheckpoints, setStoryCheckpoints] = useState<StoryCheckpoint[]>([]);
+  const [coreLibrary, setCoreLibrary] = useState<CoreMemoryRecord[]>([]);
   const [livingMemory, setLivingMemory] =
     useState<LivingMemory>(defaultLivingMemory);
-  const [prompt, setPrompt] = useState(
-    "Continue with Mira entering a private conversation where both people are careful about what they reveal."
-  );
+  const [prompt, setPrompt] = useState(starterPrompt);
   const [busy, setBusy] = useState(false);
   const [imageBusyId, setImageBusyId] = useState<string | null>(null);
   const [operationStartedAt, setOperationStartedAt] = useState<number | null>(null);
@@ -140,6 +152,7 @@ export default function Home() {
   const [gateway, setGateway] = useState<GatewayReport>({ checks: [] });
   const [healthChecks, setHealthChecks] = useState<GatewayCheck[]>([]);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [selectedPresetId, setSelectedPresetId] = useState(defaultStoryPreset.id);
   const [theme, setTheme] = useState<"dark" | "light">("dark");
   const [storageStatus, setStorageStatus] = useState<GatewayCheck>({
     id: "storage",
@@ -187,9 +200,26 @@ export default function Home() {
       setStoryCheckpoints(normalizeStoryCheckpoints(parsed.storyCheckpoints));
       setLivingMemory(normalizeLivingMemory(parsed.livingMemory));
       setPrompt(parsed.prompt || "");
+      if (
+        typeof parsed.selectedPresetId === "string" &&
+        storyPresets.some((preset) => preset.id === parsed.selectedPresetId)
+      ) {
+        setSelectedPresetId(parsed.selectedPresetId);
+      }
     } catch {
       window.localStorage.removeItem(storageKey);
       setNotice("Saved draft was unreadable, so the app started with defaults.");
+    }
+
+    try {
+      const savedLibrary = window.localStorage.getItem(coreLibraryKey);
+
+      if (savedLibrary) {
+        setCoreLibrary(normalizeCoreLibrary(JSON.parse(savedLibrary)));
+      }
+    } catch {
+      window.localStorage.removeItem(coreLibraryKey);
+      setNotice("Saved core memory library was unreadable, so it was cleared.");
     }
   }, []);
 
@@ -212,7 +242,8 @@ export default function Home() {
           scenes,
           storyCheckpoints,
           livingMemory,
-          prompt
+          prompt,
+          selectedPresetId
         })
       );
     } catch {
@@ -223,7 +254,29 @@ export default function Home() {
         detail: "This browser could not save the current draft."
       });
     }
-  }, [story, characters, scenes, storyCheckpoints, livingMemory, prompt]);
+  }, [
+    story,
+    characters,
+    scenes,
+    storyCheckpoints,
+    livingMemory,
+    prompt,
+    selectedPresetId
+  ]);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(coreLibraryKey, JSON.stringify(coreLibrary));
+    } catch {
+      setStorageStatus({
+        id: "core-library-storage",
+        label: "Core memory library",
+        status: "error",
+        detail:
+          "This browser could not save the core memory library. Try deleting older image-heavy memories."
+      });
+    }
+  }, [coreLibrary]);
 
   useEffect(() => {
     if ("serviceWorker" in navigator) {
@@ -568,7 +621,35 @@ export default function Home() {
     const checkpoint = createStoryCheckpoint(story, characters, scenes);
 
     setStoryCheckpoints((current) => [checkpoint, ...current].slice(0, 12));
-    setCheckpointStatus("Story checkpoint saved into long-term memory.");
+    setLivingMemory((current) =>
+      updateLivingMemoryWithCheckpoint(current, checkpoint)
+    );
+    setCheckpointStatus("Story checkpoint saved into long-term living memory.");
+  }
+
+  async function saveCoreMemory() {
+    const checkpoint = createStoryCheckpoint(story, characters, scenes);
+    const nextMemory = updateLivingMemoryWithCheckpoint(livingMemory, checkpoint);
+    const images = await collectCoreMemoryImages(scenes);
+    const record: CoreMemoryRecord = {
+      id: createId("core-memory"),
+      title: checkpoint.title,
+      createdAt: new Date().toISOString(),
+      storyline: checkpoint.storyline,
+      keyCharacters: checkpoint.keyCharacters,
+      attitudeShifts: checkpoint.attitudeShifts,
+      livingMemory: nextMemory,
+      images
+    };
+
+    setStoryCheckpoints((current) => [checkpoint, ...current].slice(0, 12));
+    setLivingMemory(nextMemory);
+    setCoreLibrary((current) => [record, ...current].slice(0, 20));
+    setCheckpointStatus(
+      `Core memory saved locally with ${images.length} image${
+        images.length === 1 ? "" : "s"
+      }.`
+    );
   }
 
   function removeStoryCheckpoint(id: string) {
@@ -578,6 +659,62 @@ export default function Home() {
     setCheckpointStatus("Story checkpoint removed from long-term memory.");
   }
 
+  function bringCoreMemoryIntoStory(record: CoreMemoryRecord) {
+    const checkpoint: StoryCheckpoint = {
+      id: createId("checkpoint"),
+      title: record.title,
+      createdAt: new Date().toISOString(),
+      storyline: record.storyline,
+      keyCharacters: record.keyCharacters,
+      attitudeShifts: record.attitudeShifts
+    };
+
+    setLivingMemory((current) =>
+      mergeLivingMemory(current, record.livingMemory, checkpoint)
+    );
+    setStoryCheckpoints((current) => [checkpoint, ...current].slice(0, 12));
+    setCheckpointStatus("Core memory brought into the current story.");
+  }
+
+  function removeCoreMemory(id: string) {
+    setCoreLibrary((current) => current.filter((record) => record.id !== id));
+    setCheckpointStatus("Core memory removed from the local library.");
+  }
+
+  function applyStoryPreset(presetId: string) {
+    const preset =
+      storyPresets.find((item) => item.id === presetId) || defaultStoryPreset;
+    const currentPreset =
+      storyPresets.find((item) => item.id === selectedPresetId) ||
+      defaultStoryPreset;
+    const hasDraft =
+      scenes.length > 0 ||
+      storyCheckpoints.length > 0 ||
+      countLivingMemoryItems(livingMemory) > 0 ||
+      prompt.trim() !== currentPreset.starterPrompt ||
+      story.title !== currentPreset.story.title;
+
+    if (hasDraft) {
+      const shouldReplace = window.confirm(
+        "Switch story preset? This will replace the current draft, scenes, prompt, living memory, and checkpoints. Your Local Core Library will stay saved."
+      );
+
+      if (!shouldReplace) return;
+    }
+
+    setSelectedPresetId(preset.id);
+    setStory(preset.story);
+    setCharacters(preset.starterCharacters);
+    setSelectedCharacterId(preset.starterCharacters[0]?.id || "");
+    setScenes([]);
+    setStoryCheckpoints([]);
+    setLivingMemory(defaultLivingMemory);
+    setPrompt(preset.starterPrompt);
+    setGateway({ checks: [] });
+    setNotice("");
+    setCheckpointStatus(`Loaded preset: ${preset.label}.`);
+  }
+
   function resetDraft() {
     const shouldReset = window.confirm(
       "Reset this story? This will clear the current scenes, prompt, scenario setup, character setup, and story checkpoints."
@@ -585,15 +722,17 @@ export default function Home() {
 
     if (!shouldReset) return;
 
-    setStory(defaultStory);
-    setCharacters(starterCharacters);
-    setSelectedCharacterId(starterCharacters[0]?.id || "");
+    const preset =
+      storyPresets.find((item) => item.id === selectedPresetId) ||
+      defaultStoryPreset;
+
+    setStory(preset.story);
+    setCharacters(preset.starterCharacters);
+    setSelectedCharacterId(preset.starterCharacters[0]?.id || "");
     setScenes([]);
     setStoryCheckpoints([]);
     setLivingMemory(defaultLivingMemory);
-    setPrompt(
-      "Continue with Mira entering a private conversation where both people are careful about what they reveal."
-    );
+    setPrompt(preset.starterPrompt);
     setGateway({ checks: [] });
     setNotice("");
     setCheckpointStatus("");
@@ -798,6 +937,22 @@ export default function Home() {
 
         <section className="drawer-section" aria-labelledby="scenario-background">
           <h3 id="scenario-background">Scenario Background</h3>
+          <Field label="Story Preset">
+            <select
+              value={selectedPresetId}
+              onChange={(event) => applyStoryPreset(event.target.value)}
+            >
+              {storyPresets.map((preset) => (
+                <option key={preset.id} value={preset.id}>
+                  {preset.label}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <p className="preset-description">
+            {storyPresets.find((preset) => preset.id === selectedPresetId)
+              ?.description || defaultStoryPreset.description}
+          </p>
           <Field label="Title">
             <input
               value={story.title}
@@ -920,6 +1075,81 @@ export default function Home() {
               items={livingMemory.continuityWarnings}
             />
           </div>
+        </section>
+
+        <section className="drawer-section" aria-labelledby="core-library">
+          <div className="drawer-section-title">
+            <div>
+              <h3 id="core-library">Local Core Library</h3>
+              <span className="count">{coreLibrary.length} saved</span>
+            </div>
+            <button
+              className="button small"
+              type="button"
+              disabled={busy || imageBusy}
+              onClick={saveCoreMemory}
+            >
+              Save Core
+            </button>
+          </div>
+
+          {coreLibrary.length > 0 ? (
+            <div className="checkpoint-list">
+              {coreLibrary.map((record) => (
+                <article className="checkpoint-item" key={record.id}>
+                  <div className="checkpoint-heading">
+                    <div>
+                      <strong>{record.title}</strong>
+                      <span>
+                        {new Date(record.createdAt).toLocaleString([], {
+                          dateStyle: "medium",
+                          timeStyle: "short"
+                        })}
+                      </span>
+                    </div>
+                    <div className="library-actions">
+                      <button
+                        className="button small"
+                        type="button"
+                        onClick={() => bringCoreMemoryIntoStory(record)}
+                      >
+                        Bring In
+                      </button>
+                      <button
+                        className="button small"
+                        type="button"
+                        onClick={() => removeCoreMemory(record.id)}
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+                  <div className="checkpoint-section">
+                    <span>Core Storyline</span>
+                    <p>{record.storyline}</p>
+                  </div>
+                  {record.images.length > 0 ? (
+                    <div className="library-image-grid">
+                      {record.images.map((image) => (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          alt={image.title}
+                          key={image.id}
+                          src={image.imageUrl}
+                          title={image.title}
+                        />
+                      ))}
+                    </div>
+                  ) : null}
+                </article>
+              ))}
+            </div>
+          ) : (
+            <div className="empty-state compact">
+              <h3>No core memories saved</h3>
+              <p>Save a core memory to keep durable story state and images.</p>
+            </div>
+          )}
         </section>
 
         <section className="drawer-section" aria-labelledby="additional-options">
@@ -1440,6 +1670,101 @@ function formatCheckpointForMemory(checkpoint: StoryCheckpoint) {
   ];
 }
 
+function updateLivingMemoryWithCheckpoint(
+  memory: LivingMemory,
+  checkpoint: StoryCheckpoint
+): LivingMemory {
+  return normalizeLivingMemory({
+    ...memory,
+    facts: [
+      `Checkpoint "${checkpoint.title}": ${checkpoint.storyline}`,
+      ...memory.facts
+    ],
+    characterStates: [
+      ...checkpoint.keyCharacters.map(
+        (character) => `Checkpoint character: ${character}`
+      ),
+      ...checkpoint.attitudeShifts.map((shift) => `Checkpoint shift: ${shift}`),
+      ...memory.characterStates
+    ],
+    updatedAt: new Date().toISOString()
+  });
+}
+
+function mergeLivingMemory(
+  current: LivingMemory,
+  imported: LivingMemory,
+  checkpoint?: StoryCheckpoint
+): LivingMemory {
+  const checkpointMemory = checkpoint
+    ? updateLivingMemoryWithCheckpoint(defaultLivingMemory, checkpoint)
+    : defaultLivingMemory;
+
+  return normalizeLivingMemory({
+    facts: [
+      ...checkpointMemory.facts,
+      ...imported.facts,
+      ...current.facts
+    ],
+    characterStates: [
+      ...checkpointMemory.characterStates,
+      ...imported.characterStates,
+      ...current.characterStates
+    ],
+    openThreads: [...imported.openThreads, ...current.openThreads],
+    toneRules: [...imported.toneRules, ...current.toneRules],
+    continuityWarnings: [
+      ...imported.continuityWarnings,
+      ...current.continuityWarnings
+    ],
+    updatedAt: new Date().toISOString()
+  });
+}
+
+async function collectCoreMemoryImages(scenes: Scene[]) {
+  const imageScenes = scenes
+    .filter((scene) => scene.imageUrl)
+    .slice(0, 6);
+  const images = await Promise.all(
+    imageScenes.map(async (scene) => ({
+      id: createId("core-image"),
+      title: scene.title || "Saved scene image",
+      imageUrl: await preserveImageUrl(scene.imageUrl || ""),
+      capturedAt: new Date().toISOString()
+    }))
+  );
+
+  return images.filter((image) => image.imageUrl);
+}
+
+async function preserveImageUrl(imageUrl: string) {
+  if (!imageUrl || imageUrl.startsWith("data:")) return imageUrl;
+
+  try {
+    const response = await fetch(imageUrl);
+
+    if (!response.ok) return imageUrl;
+
+    const blob = await response.blob();
+
+    if (blob.size > 1_500_000) return imageUrl;
+
+    return await blobToDataUrl(blob);
+  } catch {
+    return imageUrl;
+  }
+}
+
+function blobToDataUrl(blob: Blob) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+
+    reader.onerror = () => reject(new Error("Could not save image."));
+    reader.onload = () => resolve(String(reader.result || ""));
+    reader.readAsDataURL(blob);
+  });
+}
+
 function compactCheckpointText(value: string, maxLength = 520) {
   const clean = value.replace(/\s+/g, " ").trim();
 
@@ -1463,6 +1788,91 @@ function collectUnique(values: string[]) {
   });
 
   return unique;
+}
+
+function isObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function stringOrDefault(value: unknown, fallback: string) {
+  return typeof value === "string" && value.trim() ? value.trim() : fallback;
+}
+
+function normalizeStoryPreset(value: unknown): StoryPreset {
+  const source = isObject(value) ? value : {};
+  const id = stringOrDefault(source.id, "story-preset")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)/g, "");
+  const label = stringOrDefault(source.label, "Story Preset");
+
+  return {
+    id: id || "story-preset",
+    label,
+    description: stringOrDefault(source.description, `${label} preset.`),
+    story: normalizePresetStory(source.story),
+    starterCharacters: normalizePresetCharacters(source.starterCharacters),
+    starterPrompt: stringOrDefault(
+      source.starterPrompt,
+      "Continue the story from the current setup."
+    )
+  };
+}
+
+function normalizePresetStory(value: unknown): Story {
+  const source = isObject(value) ? value : {};
+
+  return {
+    title: stringOrDefault(source.title, "Untitled story"),
+    genre: stringOrDefault(source.genre, "Adult contemporary drama"),
+    tone: stringOrDefault(source.tone, "Intimate and character driven"),
+    worldRules: stringOrDefault(source.worldRules, "No scenario constraints defined."),
+    summary: stringOrDefault(source.summary, "The scenario is just beginning.")
+  };
+}
+
+function normalizePresetCharacters(value: unknown): Character[] {
+  if (!Array.isArray(value) || value.length === 0) {
+    return [
+      {
+        id: "lead",
+        name: "Lead Character",
+        importance: "main",
+        role: "Main character",
+        personality: "",
+        appearance: "",
+        goals: "",
+        secrets: ""
+      }
+    ];
+  }
+
+  return value
+    .filter((character) => isObject(character))
+    .map((character, index) => ({
+      id: stringOrDefault(character.id, `character-${index + 1}`),
+      name: stringOrDefault(character.name, `Character ${index + 1}`),
+      importance:
+        character.importance === "main" ||
+        character.importance === "important" ||
+        character.importance === "supporting"
+          ? character.importance
+          : index === 0
+            ? "main"
+            : "important",
+      role: stringOrDefault(
+        character.role,
+        index === 0 ? "Main character" : "Supporting character"
+      ),
+      personality: stringOrDefault(character.personality, ""),
+      appearance: stringOrDefault(character.appearance, ""),
+      goals: stringOrDefault(character.goals, ""),
+      secrets: stringOrDefault(character.secrets, ""),
+      portraitUrl:
+        typeof character.portraitUrl === "string" ? character.portraitUrl : "",
+      portraitName:
+        typeof character.portraitName === "string" ? character.portraitName : ""
+    }));
 }
 
 function normalizeStory(value: unknown): Story {
@@ -1541,6 +1951,57 @@ function normalizeStoryCheckpoints(value: unknown): StoryCheckpoint[] {
     }))
     .filter((checkpoint) => checkpoint.storyline.trim())
     .slice(0, 12);
+}
+
+function normalizeCoreLibrary(value: unknown): CoreMemoryRecord[] {
+  if (!Array.isArray(value)) return [];
+
+  return value
+    .filter((record): record is Partial<CoreMemoryRecord> =>
+      Boolean(record && typeof record === "object" && !Array.isArray(record))
+    )
+    .map((record) => ({
+      id: record.id || createId("core-memory"),
+      title: record.title || "Core memory",
+      createdAt: record.createdAt || new Date().toISOString(),
+      storyline:
+        typeof record.storyline === "string" && record.storyline.trim()
+          ? compactCheckpointText(record.storyline)
+          : "Saved core memory.",
+      keyCharacters: cleanCoreTextItems(record.keyCharacters, 6, 260),
+      attitudeShifts: cleanCoreTextItems(record.attitudeShifts, 8, 220),
+      livingMemory: normalizeLivingMemory(record.livingMemory),
+      images: normalizeCoreMemoryImages(record.images)
+    }))
+    .filter((record) => record.storyline.trim())
+    .slice(0, 20);
+}
+
+function normalizeCoreMemoryImages(value: unknown): CoreMemoryImage[] {
+  if (!Array.isArray(value)) return [];
+
+  return value
+    .filter((image): image is Partial<CoreMemoryImage> =>
+      Boolean(image && typeof image === "object" && !Array.isArray(image))
+    )
+    .map((image) => ({
+      id: image.id || createId("core-image"),
+      title: image.title || "Saved scene image",
+      imageUrl: image.imageUrl || "",
+      capturedAt: image.capturedAt || new Date().toISOString()
+    }))
+    .filter((image) => image.imageUrl.trim())
+    .slice(0, 6);
+}
+
+function cleanCoreTextItems(value: unknown, maxItems: number, maxLength: number) {
+  if (!Array.isArray(value)) return [];
+
+  return collectUnique(
+    value.filter((item): item is string => typeof item === "string")
+  )
+    .map((item) => compactCheckpointText(item, maxLength))
+    .slice(0, maxItems);
 }
 
 function normalizeLivingMemory(

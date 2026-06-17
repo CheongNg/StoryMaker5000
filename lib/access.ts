@@ -19,6 +19,19 @@ export function isAccessEnabled() {
   return Boolean(process.env.ACCESS_PASSWORD?.trim());
 }
 
+export function shouldRequireAccess(request: { headers: Headers }) {
+  return isAccessEnabled() && !isLocalAccessRequest(request.headers);
+}
+
+export function isLocalAccessRequest(headers: Headers) {
+  const forwardedHost = firstHeaderValue(headers.get("x-forwarded-host"));
+  const host = firstHeaderValue(forwardedHost || headers.get("host"));
+
+  if (!host) return false;
+
+  return isLocalHostName(hostToName(host));
+}
+
 export function getAccessSecretProblem(secret = process.env.ACCESS_PASSWORD) {
   const cleanSecret = secret?.trim() || "";
 
@@ -105,6 +118,52 @@ function timingSafeEqual(left: string, right: string) {
   }
 
   return difference === 0;
+}
+
+function firstHeaderValue(value: string | null) {
+  return value?.split(",")[0]?.trim() || "";
+}
+
+function hostToName(host: string) {
+  const cleanHost = host.trim().toLowerCase();
+
+  if (cleanHost.startsWith("[")) {
+    return cleanHost.slice(1, cleanHost.indexOf("]"));
+  }
+
+  return cleanHost.split(":")[0] || cleanHost;
+}
+
+function isLocalHostName(hostname: string) {
+  if (
+    hostname === "localhost" ||
+    hostname.endsWith(".localhost") ||
+    hostname === "0.0.0.0" ||
+    hostname === "::1"
+  ) {
+    return true;
+  }
+
+  if (/^127\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(hostname)) {
+    return true;
+  }
+
+  if (/^10\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(hostname)) {
+    return true;
+  }
+
+  if (/^192\.168\.\d{1,3}\.\d{1,3}$/.test(hostname)) {
+    return true;
+  }
+
+  const private172 = hostname.match(/^172\.(\d{1,3})\.\d{1,3}\.\d{1,3}$/);
+
+  if (private172) {
+    const secondOctet = Number(private172[1]);
+    return secondOctet >= 16 && secondOctet <= 31;
+  }
+
+  return hostname.startsWith("fc") || hostname.startsWith("fd");
 }
 
 async function sha256(value: string) {

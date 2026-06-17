@@ -5,7 +5,10 @@ param(
 
 $ErrorActionPreference = "Stop"
 
-Set-Location -LiteralPath "D:\StoryMaker5000"
+$RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
+$NextBin = Join-Path $RepoRoot "node_modules\next\dist\bin\next"
+
+Set-Location -LiteralPath $RepoRoot
 
 function New-Secret([int]$ByteCount) {
   $bytes = New-Object byte[] $ByteCount
@@ -112,14 +115,14 @@ $utf8NoBom = New-Object System.Text.UTF8Encoding $false
 $server = Start-Process `
   -FilePath "node.exe" `
   -ArgumentList @(
-    "D:\StoryMaker5000\node_modules\next\dist\bin\next",
+    $NextBin,
     "dev",
     "--hostname",
     "0.0.0.0",
     "--port",
     "$Port"
   ) `
-  -WorkingDirectory "D:\StoryMaker5000" `
+  -WorkingDirectory $RepoRoot `
   -WindowStyle Hidden `
   -PassThru
 
@@ -168,7 +171,7 @@ try {
       "--ha-connections",
       "1"
     )) `
-    -WorkingDirectory "D:\StoryMaker5000" `
+    -WorkingDirectory $RepoRoot `
     -WindowStyle Hidden `
     -PassThru
 

@@ -56,7 +56,7 @@ Use Node fetch with system CA:
 
 ```powershell
 $env:NODE_OPTIONS="--use-system-ca"
-node scripts/public-smoke.mjs
+node scripts/diagnostics/public-smoke.mjs
 ```
 
 Target checks:
@@ -103,8 +103,8 @@ Before sharing a phone URL:
 
 Create these scripts when the flow stabilizes:
 
-- `scripts/check-config.mjs`: verify env lengths, provider names, model names, and required files.
-- `scripts/local-access-smoke.mjs`: create temporary OTP, test local login/cookie/health.
-- `scripts/public-smoke.mjs`: test public tunnel login/root/health using Node fetch with system CA.
-- `scripts/story-smoke.mjs`: test mock/live story generation response shape including living memory.
-- `scripts/start-online-health.ps1`: start server and tunnel, wait for URL, write `online-live-info.json`, and run public smoke before printing the user link.
+- `scripts/diagnostics/check-config.mjs`: verify env lengths, provider names, model names, and required files.
+- `scripts/diagnostics/local-access-smoke.mjs`: create temporary OTP, test local login/cookie/health.
+- `scripts/diagnostics/public-smoke.mjs`: test public tunnel login/root/health using Node fetch with system CA.
+- `scripts/diagnostics/story-smoke.mjs`: test mock/live story generation response shape including living memory.
+- `scripts/server/start-online-health.ps1`: start server and tunnel, wait for URL, write `online-live-info.json`, and run public smoke before printing the user link.

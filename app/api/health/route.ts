@@ -3,7 +3,8 @@ import {
   accessCookieName,
   getAccessSecretProblem,
   isAccessEnabled,
-  isValidAccessToken
+  isValidAccessToken,
+  shouldRequireAccess
 } from "../../../lib/access";
 
 export const dynamic = "force-dynamic";
@@ -24,6 +25,7 @@ export async function GET(request: NextRequest) {
     "xai"
   ]);
   const accessProblem = getAccessSecretProblem();
+  const requiresAccess = shouldRequireAccess(request);
 
   return NextResponse.json({
     ok: true,
@@ -31,10 +33,15 @@ export async function GET(request: NextRequest) {
       {
         id: "access",
         label: "Online access",
-        status: !isAccessEnabled() || accessProblem ? "warning" : "ok",
+        status:
+          requiresAccess && (!isAccessEnabled() || accessProblem)
+            ? "warning"
+            : "ok",
         detail:
-          !isAccessEnabled() || accessProblem
-            ? "Use run-online.ps1 to generate a one-time online access code."
+          !requiresAccess
+            ? "Local/private network access does not require a one-time code."
+            : !isAccessEnabled() || accessProblem
+            ? "Use scripts/server/start-online.ps1 to generate a one-time online access code."
             : "One-time online access is configured."
       },
       {
@@ -61,7 +68,7 @@ export async function GET(request: NextRequest) {
 
 async function isAccessRequired(request: NextRequest) {
   return (
-    isAccessEnabled() &&
+    shouldRequireAccess(request) &&
     !(await isValidAccessToken(request.cookies.get(accessCookieName)?.value))
   );
 }

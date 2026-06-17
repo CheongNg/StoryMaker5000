@@ -4,7 +4,10 @@ param(
 
 $ErrorActionPreference = "Stop"
 
-Set-Location -LiteralPath "D:\StoryMaker5000"
+$RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
+$NextBin = Join-Path $RepoRoot "node_modules\next\dist\bin\next"
+
+Set-Location -LiteralPath $RepoRoot
 
 foreach ($serverPort in @(3000, 3456)) {
   $connections = Get-NetTCPConnection `
@@ -41,4 +44,4 @@ foreach ($address in $addresses) {
 Write-Host ""
 Write-Host "Keep this window open while using StoryMaker5000."
 
-node.exe "D:\StoryMaker5000\node_modules\next\dist\bin\next" dev --hostname 0.0.0.0 --port $Port
+node.exe $NextBin dev --hostname 0.0.0.0 --port $Port

@@ -108,7 +108,7 @@ Only commit and push after the desktop and phone checks both pass.
 2. Restart any old StoryMaker5000 servers and start the phone server:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File restart-servers.ps1
+powershell -ExecutionPolicy Bypass -File scripts/server/restart-servers.ps1
 ```
 
 You can also double-click:
@@ -149,7 +149,7 @@ Use this whenever Codex or a terminal session needs to restart the app and give 
 The scripted command is:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File restart-servers.ps1
+powershell -ExecutionPolicy Bypass -File scripts/server/restart-servers.ps1
 ```
 
 Default links:
@@ -164,7 +164,7 @@ Phone:    http://YOUR_IPV4_ADDRESS:3456
 For access outside your Wi-Fi, use a temporary Cloudflare tunnel. This exposes the same frontend through a public HTTPS link protected by a generated one-time access code. Run:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File start-online.ps1
+powershell -ExecutionPolicy Bypass -File scripts/server/start-online.ps1
 ```
 
 You can also double-click:
@@ -212,6 +212,18 @@ app/api/instructions.ts
 ```
 
 These backend instructions are applied automatically to every story and image request. Story and picture guardrails should be edited in this backend file instead of repeated in the frontend.
+
+## Story presets
+
+The editable starting story preset lives in:
+
+```text
+story-library/presets/default-story.json
+```
+
+Edit that JSON file to change the default scenario, starter character list, and first prompt used for a fresh draft or after `Reset Story`.
+
+Additional selectable presets live in the same folder. The setup drawer includes a `Story Preset` picker that can switch the active draft between the available preset JSON files.
 
 ## Code modification protocol
 
@@ -293,7 +305,7 @@ npm.cmd run dev
 Then run the backend smoke check in a second terminal:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts/check-api.ps1
+powershell -ExecutionPolicy Bypass -File scripts/diagnostics/check-api.ps1
 ```
 
 The health route should show the story and image gateways as configured. The smoke check will call both API routes and report whether each gateway is using `live` or `mock` mode.
@@ -311,3 +323,13 @@ The app performs checks at these points:
 - Response shape checks before the UI saves generated content
 
 The visible gateway panels are meant to make failures easy to diagnose during personal testing.
+
+## Folder map
+
+- `app/`: Next.js pages, UI, and API routes.
+- `lib/`: shared server helpers.
+- `public/`: static browser assets and character reference pictures.
+- `scripts/server/`: local, phone, and online server launchers.
+- `scripts/diagnostics/`: smoke checks and troubleshooting scripts.
+- `docs/`: QA notes and testing plans.
+- `story-library/`: story planning material, references, and templates.
