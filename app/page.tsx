@@ -15,7 +15,7 @@ type Story = {
 type Character = {
   id: string;
   name: string;
-  importance: CharacterImportance;
+  family: string;
   role: string;
   personality: string;
   appearance: string;
@@ -25,14 +25,13 @@ type Character = {
   portraitName?: string;
 };
 
-type CharacterImportance = "main" | "important" | "supporting";
-
 type StoryPreset = {
   id: string;
   label: string;
   description: string;
   story: Story;
   starterCharacters: Character[];
+  characterRoster: Character[];
   starterPrompt: string;
 };
 
@@ -134,6 +133,9 @@ const starterPrompt = defaultStoryPreset.starterPrompt;
 export default function Home() {
   const [story, setStory] = useState<Story>(defaultStory);
   const [characters, setCharacters] = useState<Character[]>(starterCharacters);
+  const [presetRoster, setPresetRoster] = useState<Character[]>(
+    defaultStoryPreset.characterRoster
+  );
   const [selectedCharacterId, setSelectedCharacterId] = useState(
     starterCharacters[0]?.id || ""
   );
@@ -206,6 +208,10 @@ export default function Home() {
       ) {
         setSelectedPresetId(parsed.selectedPresetId);
       }
+      const savedPreset =
+        storyPresets.find((preset) => preset.id === parsed.selectedPresetId) ||
+        defaultStoryPreset;
+      setPresetRoster(savedPreset.characterRoster);
     } catch {
       window.localStorage.removeItem(storageKey);
       setNotice("Saved draft was unreadable, so the app started with defaults.");
@@ -318,15 +324,7 @@ export default function Home() {
 
   const chatScenes = useMemo(() => [...scenes].reverse(), [scenes]);
   const latestScene = scenes[0];
-  const groupedCharacters = useMemo(
-    () => groupCharacters(characters),
-    [characters]
-  );
-  const characterPockets = groupedCharacters.filter(
-    (group) => group.id === "main" || group.id === "important"
-  );
-  const supportingCharacters =
-    groupedCharacters.find((group) => group.id === "supporting")?.characters || [];
+  const familyGroups = useMemo(() => groupCharactersByFamily(characters), [characters]);
   const selectedCharacter =
     characters.find((character) => character.id === selectedCharacterId) ||
     characters[0];
@@ -480,7 +478,7 @@ export default function Home() {
   async function generateImage(scene: Scene) {
     const sourcePrompt = (scene.imagePrompt || scene.summary || scene.text).trim();
     const referenceImages = characters
-      .filter((character) => character.portraitUrl)
+      .filter((character) => character.portraitUrl?.startsWith("data:image/"))
       .slice(0, 3)
       .map((character) => ({
         name: character.name || "Unnamed character",
@@ -551,7 +549,7 @@ export default function Home() {
     const nextCharacter: Character = {
       id: createId("character"),
       name: "New character",
-      importance: "supporting",
+      family: "",
       role: "Supporting character",
       personality: "",
       appearance: "",
@@ -563,6 +561,21 @@ export default function Home() {
 
     setCharacters((current) => [...current, nextCharacter]);
     setSelectedCharacterId(nextCharacter.id);
+  }
+
+  function toggleRosterCharacter(rosterChar: Character) {
+    const isActive = characters.some((c) => c.id === rosterChar.id);
+
+    if (isActive) {
+      const nextCharacters = characters.filter((c) => c.id !== rosterChar.id);
+      setCharacters(nextCharacters);
+      if (selectedCharacterId === rosterChar.id) {
+        setSelectedCharacterId(nextCharacters[0]?.id || "");
+      }
+    } else {
+      setCharacters((current) => [...current, { ...rosterChar }]);
+      setSelectedCharacterId(rosterChar.id);
+    }
   }
 
   function updateCharacter(id: string, patch: Partial<Character>) {
@@ -705,6 +718,7 @@ export default function Home() {
     setSelectedPresetId(preset.id);
     setStory(preset.story);
     setCharacters(preset.starterCharacters);
+    setPresetRoster(preset.characterRoster);
     setSelectedCharacterId(preset.starterCharacters[0]?.id || "");
     setScenes([]);
     setStoryCheckpoints([]);
@@ -728,6 +742,7 @@ export default function Home() {
 
     setStory(preset.story);
     setCharacters(preset.starterCharacters);
+    setPresetRoster(preset.characterRoster);
     setSelectedCharacterId(preset.starterCharacters[0]?.id || "");
     setScenes([]);
     setStoryCheckpoints([]);
@@ -1171,104 +1186,92 @@ export default function Home() {
 
         <section className="drawer-section" aria-labelledby="character-background">
           <div className="drawer-section-title">
-            <h3 id="character-background">Main Characters</h3>
+            <h3 id="character-background">Cast</h3>
             <button className="button small" type="button" onClick={addCharacter}>
-              Add Character
+              Add Blank
             </button>
           </div>
 
-          <div className="character-pocket-grid" aria-label="Key character pockets">
-            {characterPockets.map((group) => (
-              <section className="character-pocket" key={group.id}>
-                <div className="character-pocket-heading">
-                  <h4>{group.label}</h4>
-                  <span>{group.characters.length}</span>
-                </div>
-                <div className="character-pocket-strip">
-                  {group.characters.length > 0 ? (
-                    group.characters.map((character) => {
-                      const index = characters.findIndex(
-                        (item) => item.id === character.id
-                      );
-                      const fallbackName = `Character ${index + 1}`;
+          {presetRoster.length > 0 ? (
+            <>
+              <p className="roster-label">Tap a portrait to add or remove from the active cast:</p>
+              <div className="roster-strip">
+                {presetRoster.map((rosterChar) => {
+                  const isActive = characters.some((c) => c.id === rosterChar.id);
+                  return (
+                    <button
+                      className={`roster-card ${isActive ? "active" : ""}`}
+                      key={rosterChar.id}
+                      title={rosterChar.name}
+                      type="button"
+                      onClick={() => toggleRosterCharacter(rosterChar)}
+                    >
+                      {rosterChar.portraitUrl ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          alt={rosterChar.name}
+                          src={rosterChar.portraitUrl}
+                        />
+                      ) : (
+                        <div className="roster-avatar">
+                          {(rosterChar.name || "?").slice(0, 1)}
+                        </div>
+                      )}
+                      <span>{rosterChar.name.split(" ")[0] || "?"}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </>
+          ) : null}
 
+          {characters.length > 0 ? (
+            <div className="character-group-list">
+              {familyGroups.map((group) => (
+                <div className="character-group" key={group.family}>
+                  <div className="character-group-heading">
+                    <h4>{group.family}</h4>
+                    <span>{group.characters.length}</span>
+                  </div>
+                  <div className="character-summary-list">
+                    {group.characters.map((character) => {
+                      const index = characters.findIndex((c) => c.id === character.id);
+                      const fallbackName = `Character ${index + 1}`;
                       return (
                         <button
-                          className={`pocket-character ${
+                          className={`character-summary compact ${
                             selectedCharacter?.id === character.id ? "selected" : ""
                           }`}
-                          key={`pocket-${character.id}`}
-                          title={character.name || fallbackName}
+                          key={character.id}
                           type="button"
                           onClick={() => setSelectedCharacterId(character.id)}
                         >
                           {character.portraitUrl ? (
                             // eslint-disable-next-line @next/next/no-img-element
                             <img
+                              alt={`${character.name || fallbackName} portrait`}
                               src={character.portraitUrl}
-                              alt={`${character.name || fallbackName} reference`}
                             />
                           ) : (
                             <span>{(character.name || `${index + 1}`).slice(0, 1)}</span>
                           )}
-                          <strong>{character.name || fallbackName}</strong>
+                          <div>
+                            <strong>{character.name || fallbackName}</strong>
+                            <small>{character.role || "No role set"}</small>
+                          </div>
                         </button>
                       );
-                    })
-                  ) : (
-                    <div className="character-pocket-empty">Empty</div>
-                  )}
+                    })}
+                  </div>
                 </div>
-              </section>
-            ))}
-          </div>
-
-          <details
-            className="supporting-pocket"
-            open={selectedCharacter?.importance === "supporting"}
-          >
-            <summary>
-              <span>Supporting</span>
-              <strong>{supportingCharacters.length}</strong>
-            </summary>
-            <div className="character-summary-list">
-              {supportingCharacters.length > 0 ? (
-                supportingCharacters.map((character) => {
-                  const index = characters.findIndex(
-                    (item) => item.id === character.id
-                  );
-                  const fallbackName = `Character ${index + 1}`;
-
-                  return (
-                    <button
-                      className={`character-summary compact ${
-                        selectedCharacter?.id === character.id ? "selected" : ""
-                      }`}
-                      key={`supporting-${character.id}`}
-                      type="button"
-                      onClick={() => setSelectedCharacterId(character.id)}
-                    >
-                      {character.portraitUrl ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
-                          src={character.portraitUrl}
-                          alt={`${character.name || fallbackName} reference`}
-                        />
-                      ) : (
-                        <span>{(character.name || `${index + 1}`).slice(0, 1)}</span>
-                      )}
-                      <div>
-                        <strong>{character.name || fallbackName}</strong>
-                        <small>{character.role || "Supporting"}</small>
-                      </div>
-                    </button>
-                  );
-                })
-              ) : (
-                <div className="character-group-empty">No supporting characters</div>
-              )}
+              ))}
             </div>
-          </details>
+          ) : (
+            <div className="empty-state compact">
+              <h3>No active cast</h3>
+              <p>Tap a portrait above to add a character to the story.</p>
+            </div>
+          )}
 
           <div className="drawer-character-list">
             {selectedCharacter ? (
@@ -1286,7 +1289,7 @@ export default function Home() {
                     >
                       Remove
                     </button>
-                    ) : null}
+                  ) : null}
                 </div>
                 <div className="portrait-row">
                   {selectedCharacter.portraitUrl ? (
@@ -1327,7 +1330,7 @@ export default function Home() {
                     ) : null}
                     <small>
                       {selectedCharacter.portraitName ||
-                        "Used as a reference template for scene images."}
+                        "Upload a photo to use as a reference for image generation."}
                     </small>
                   </div>
                 </div>
@@ -1341,19 +1344,16 @@ export default function Home() {
                     }
                   />
                 </Field>
-                <Field label="Group">
-                  <select
-                    value={selectedCharacter.importance}
+                <Field label="Family">
+                  <input
+                    value={selectedCharacter.family || ""}
+                    placeholder="e.g. Luvhugetits"
                     onChange={(event) =>
                       updateCharacter(selectedCharacter.id, {
-                        importance: event.target.value as CharacterImportance
+                        family: event.target.value
                       })
                     }
-                  >
-                    <option value="main">Main</option>
-                    <option value="important">Important</option>
-                    <option value="supporting">Supporting</option>
-                  </select>
+                  />
                 </Field>
                 <Field label="Role">
                   <input
@@ -1409,7 +1409,7 @@ export default function Home() {
             ) : (
               <div className="empty-state">
                 <h3>No character selected</h3>
-                <p>Add a character to start editing the cast.</p>
+                <p>Select a character above to start editing.</p>
               </div>
             )}
           </div>
@@ -1619,10 +1619,6 @@ function createStoryCheckpoint(
     [story.summary, ...sceneSummaries].filter(Boolean).join(" ")
   );
   const keyCharacters = characters
-    .filter(
-      (character) =>
-        character.importance === "main" || character.importance === "important"
-    )
     .map((character) => {
       const details = [
         character.role,
@@ -1805,13 +1801,15 @@ function normalizeStoryPreset(value: unknown): StoryPreset {
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/(^-|-$)/g, "");
   const label = stringOrDefault(source.label, "Story Preset");
+  const starterCharacters = normalizePresetCharacters(source.starterCharacters);
 
   return {
     id: id || "story-preset",
     label,
     description: stringOrDefault(source.description, `${label} preset.`),
     story: normalizePresetStory(source.story),
-    starterCharacters: normalizePresetCharacters(source.starterCharacters),
+    starterCharacters,
+    characterRoster: normalizePresetCharacters(source.characterRoster ?? source.starterCharacters),
     starterPrompt: stringOrDefault(
       source.starterPrompt,
       "Continue the story from the current setup."
@@ -1837,7 +1835,7 @@ function normalizePresetCharacters(value: unknown): Character[] {
       {
         id: "lead",
         name: "Lead Character",
-        importance: "main",
+        family: "",
         role: "Main character",
         personality: "",
         appearance: "",
@@ -1852,14 +1850,7 @@ function normalizePresetCharacters(value: unknown): Character[] {
     .map((character, index) => ({
       id: stringOrDefault(character.id, `character-${index + 1}`),
       name: stringOrDefault(character.name, `Character ${index + 1}`),
-      importance:
-        character.importance === "main" ||
-        character.importance === "important" ||
-        character.importance === "supporting"
-          ? character.importance
-          : index === 0
-            ? "main"
-            : "important",
+      family: typeof character.family === "string" ? character.family : "",
       role: stringOrDefault(
         character.role,
         index === 0 ? "Main character" : "Supporting character"
@@ -1892,20 +1883,13 @@ function normalizeCharacters(value: unknown): Character[] {
   }
 
   return value
-    .filter((character): character is Partial<Character> =>
+    .filter((character): character is Partial<Character> & { importance?: string } =>
       Boolean(character && typeof character === "object" && !Array.isArray(character))
     )
     .map((character, index) => ({
       id: character.id || createId("character"),
       name: character.name || `Character ${index + 1}`,
-      importance:
-        character.importance === "main" ||
-        character.importance === "important" ||
-        character.importance === "supporting"
-          ? character.importance
-          : index === 0
-            ? "main"
-            : "important",
+      family: typeof character.family === "string" ? character.family : "",
       role: character.role || (index === 0 ? "Main character" : "Supporting character"),
       personality: character.personality || "",
       appearance: character.appearance || "",
@@ -2055,24 +2039,26 @@ function countLivingMemoryItems(memory: LivingMemory) {
   );
 }
 
-function groupCharacters(characters: Character[]) {
-  const groups: Array<{
-    id: CharacterImportance;
-    label: string;
-    characters: Character[];
-  }> = [
-    { id: "main", label: "Main", characters: [] },
-    { id: "important", label: "Important", characters: [] },
-    { id: "supporting", label: "Supporting", characters: [] }
-  ];
+function groupCharactersByFamily(
+  characters: Character[]
+): Array<{ family: string; characters: Character[] }> {
+  const seen = new Map<string, { family: string; characters: Character[] }>();
 
   characters.forEach((character) => {
-    const group =
-      groups.find((item) => item.id === character.importance) || groups[2];
-    group.characters.push(character);
+    const family = character.family?.trim() || "";
+    const key = family.toLowerCase();
+
+    if (!seen.has(key)) {
+      seen.set(key, { family: family || "Unassigned", characters: [] });
+    }
+    seen.get(key)!.characters.push(character);
   });
 
-  return groups;
+  return Array.from(seen.values()).sort((a, b) => {
+    if (a.family === "Unassigned") return 1;
+    if (b.family === "Unassigned") return -1;
+    return a.family.localeCompare(b.family);
+  });
 }
 
 function formatElapsed(seconds: number) {

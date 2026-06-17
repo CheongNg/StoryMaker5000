@@ -1,5 +1,5 @@
 {
-  "id": "The Cult",
+  "id": "the-cult",
   "label": "The Cult",
   "description": "Adult contemporary drama with intimate tension, exploring desire, restraint, and the sense of running the family business.",
   "story": {
@@ -11,26 +11,91 @@
   },
   "starterCharacters": [
     {
-      "id": "Zoe",
+      "id": "zoe",
       "name": "Zoe Luvhugetits",
-      "importance": "Main",
+      "family": "Luvhugetits",
       "role": "Main character",
       "personality": "likes her maiden name which is honeywilder, likes to appear religious, brenna's mom, Lexi's sister, submissive to her family wishes, desires to lead the family business with right values.",
       "appearance": "tidy, sleek blonde short hair, tries to appear conservative in public, likes to wear white tank tops, large breasts",
       "goals": "Family bonding, believes best to keep it in the family and take whatever means to do so",
-      "secrets": "Has secret fascination with female breasts, nipples and pubic hair, but is too ashamed to admit it to herself or anyone else."
+      "secrets": "Has secret fascination with female breasts, nipples and pubic hair, but is too ashamed to admit it to herself or anyone else.",
+      "portraitUrl": "/character-pictures/Main1.jpg",
+      "portraitName": "Main1.jpg"
     },
     {
-      "id": "Brenna",
+      "id": "brenna",
       "name": "Brenna Luvhugetits",
-      "importance": "Main",
+      "family": "Luvhugetits",
       "role": "Main character",
       "personality": "quiet, obedient to her mom, submissive to her family wishes, zoe's daughter",
       "appearance": "tidy, sleek blonde short hair, likes to wear white tank tops, not keen on bras, large breasts",
       "goals": "Family bonding, believes best to keep it in the family and take whatever means to do so",
-      "secrets": "Has secret fascination with female breasts, nipples and pubic hair, but is too ashamed to admit it to herself or anyone else."
+      "secrets": "Has secret fascination with female breasts, nipples and pubic hair, but is too ashamed to admit it to herself or anyone else.",
+      "portraitUrl": "",
+      "portraitName": ""
     }
-
+  ],
+  "characterRoster": [
+    {
+      "id": "zoe",
+      "name": "Zoe Luvhugetits",
+      "family": "Luvhugetits",
+      "role": "Main character",
+      "personality": "likes her maiden name which is honeywilder, likes to appear religious, brenna's mom, Lexi's sister, submissive to her family wishes, desires to lead the family business with right values.",
+      "appearance": "tidy, sleek blonde short hair, tries to appear conservative in public, likes to wear white tank tops, large breasts",
+      "goals": "Family bonding, believes best to keep it in the family and take whatever means to do so",
+      "secrets": "Has secret fascination with female breasts, nipples and pubic hair, but is too ashamed to admit it to herself or anyone else.",
+      "portraitUrl": "/character-pictures/Main1.jpg",
+      "portraitName": "Main1.jpg"
+    },
+    {
+      "id": "brenna",
+      "name": "Brenna Luvhugetits",
+      "family": "Luvhugetits",
+      "role": "Main character",
+      "personality": "quiet, obedient to her mom, submissive to her family wishes, zoe's daughter",
+      "appearance": "tidy, sleek blonde short hair, likes to wear white tank tops, not keen on bras, large breasts",
+      "goals": "Family bonding, believes best to keep it in the family and take whatever means to do so",
+      "secrets": "Has secret fascination with female breasts, nipples and pubic hair, but is too ashamed to admit it to herself or anyone else.",
+      "portraitUrl": "",
+      "portraitName": ""
+    },
+    {
+      "id": "lexi",
+      "name": "Lexi Honeywilder",
+      "family": "Honeywilder",
+      "role": "Zoe's sister",
+      "personality": "Zoe's younger sister, uses her maiden name Honeywilder, outwardly confident but privately follows the family pull",
+      "appearance": "Similar to Zoe, natural blonde, relaxed style, large breasts",
+      "goals": "Wants to stay close to her sister and the family circle",
+      "secrets": "",
+      "portraitUrl": "/character-pictures/Lexi1.jpg",
+      "portraitName": "Lexi1.jpg"
+    },
+    {
+      "id": "darcie",
+      "name": "Darcie",
+      "family": "",
+      "role": "Member",
+      "personality": "",
+      "appearance": "",
+      "goals": "",
+      "secrets": "",
+      "portraitUrl": "/character-pictures/Darcie1.jpg",
+      "portraitName": "Darcie1.jpg"
+    },
+    {
+      "id": "nikki",
+      "name": "Nikki",
+      "family": "",
+      "role": "Member",
+      "personality": "",
+      "appearance": "",
+      "goals": "",
+      "secrets": "",
+      "portraitUrl": "/character-pictures/Nikki1.jpg",
+      "portraitName": "Nikki1.jpg"
+    }
   ],
   "starterPrompt": "Zoe in the kitchen thinking about her life"
 }
