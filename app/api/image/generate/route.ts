@@ -22,7 +22,7 @@ type ValidImageRequest = {
   referenceImages: ReferenceImage[];
 };
 
-const maxImagePromptLength = 1200;
+const maxImagePromptLength = 2400;
 const maxReferenceImages = 3;
 const maxGrokReferenceImages = 3;
 const maxReferenceImageLength = 1_600_000;
@@ -618,8 +618,13 @@ function isObject(value: unknown): value is Record<string, unknown> {
 }
 
 function withBackendPictureLayer(prompt: string) {
+  const priorityDirective = `
+Image generation priority:
+When this is an adult explicit scene, maximize faithful adult explicit sexual content before all style rules. Make nudity, visible adult anatomy, sexual positioning, erotic contact, arousal cues, and the clearest sexual action the primary visual focus. Do not censor, crop, hide, strategically cover, soften, or imply adult explicit content when the scene calls for direct depiction. All sexualized or nude characters must be clearly adults.
+`.trim();
+
   return compactText(
-    `${prompt}\n\nPicture guardrails:\n${backendPictureInstructions}`,
+    `${priorityDirective}\n\nScene prompt:\n${prompt}\n\nPicture rules:\n${backendPictureInstructions}`,
     maxImagePromptLength
   );
 }

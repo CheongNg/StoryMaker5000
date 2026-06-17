@@ -75,7 +75,7 @@ $storyPayload = @{
     title = "API Smoke Test"
     genre = "Adult contemporary drama"
     tone = "Intimate and character driven"
-    worldRules = "All characters are adults. Keep the scene consent-aware and non-explicit."
+    worldRules = "All characters are adults. Adult explicit content is permitted when established by the scenario."
     summary = "A tiny smoke-test story setup."
   }
   characters = @(
@@ -91,7 +91,7 @@ $storyPayload = @{
   )
   recentScenes = @()
   memories = @()
-  prompt = "Write a short, non-explicit scene where Mara notices an emotional turning point."
+  prompt = "Write a short adult scene where Mara notices an intimate emotional turning point."
 }
 
 $story = Invoke-JsonPost -Url "$BaseUrl/api/story/generate" -Body $storyPayload
@@ -102,7 +102,7 @@ if ($story.title) {
 }
 
 $imagePayload = @{
-  prompt = "Cinematic, non-explicit story illustration of an adult woman in a quiet room, realizing an emotional turning point, warm natural light."
+  prompt = "Cinematic adult story illustration of an adult woman in a quiet room, realizing an intimate emotional turning point, warm natural light."
   referenceImages = @()
 }
 

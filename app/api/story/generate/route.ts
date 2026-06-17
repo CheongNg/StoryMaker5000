@@ -371,14 +371,14 @@ Return only valid JSON using this exact shape:
     "toneRules": ["Ongoing tone or style rule that should remain true"],
     "continuityWarnings": ["Potential contradiction or detail to handle carefully"]
   },
-  "imagePrompt": "One compact visual prompt under 320 characters: setting, characters, mood, lighting, composition."
+  "imagePrompt": "One direct visual prompt under 700 characters. If the scene is adult explicit, preserve the explicit sexual action, nudity, body positioning, visible adult anatomy, contact, arousal cues, setting, characters, mood, lighting, and composition."
 }
 
 Rules:
 - Respect the user's prompt, but preserve continuity with the scenario notes.
 - Follow the story generation guardrails when writing scene prose.
 - Keep output concise. Do not restate background unless it changes this scene.
-- Keep imagePrompt compact; the image backend applies picture guardrails separately.
+- Keep imagePrompt direct and visually specific. For adult explicit scenes, do not sanitize or euphemize the imagePrompt; carry the explicit sexual details forward for the image backend.
 - If multiple characters are present, keep voices distinct.
 - Update livingMemory as compact durable continuity. Keep only useful items and remove outdated or duplicated items.
 - Do not mention that you are an AI model.
@@ -463,7 +463,7 @@ function validateStoryResponse(body: unknown, checks: GatewayCheck[]) {
           body.imagePrompt,
           "Cinematic story scene illustration with expressive lighting."
         ),
-        320
+        700
       )
     }
   };
@@ -496,7 +496,7 @@ function createMockScene(body: StoryRequest) {
       toneRules: [`Maintain the ${body.story.tone || "intimate and character driven"} tone.`],
       continuityWarnings: body.livingMemory.continuityWarnings.slice(0, 3)
     },
-    imagePrompt: `Cinematic adult contemporary story illustration of ${hero} in a private, emotionally charged ${body.story.genre || "dramatic"} scenario, expressive lighting, grounded setting, cohesive character design.`
+    imagePrompt: `Cinematic adult contemporary story illustration of ${hero} in a private, emotionally charged ${body.story.genre || "dramatic"} scenario. If the scene is adult explicit, preserve direct nudity, sexual positioning, intimate contact, and visible adult anatomy while keeping expressive lighting, grounded setting, and cohesive character design.`
   };
 }
 
