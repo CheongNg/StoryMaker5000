@@ -1,5 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { backendPictureInstructions } from "../../instructions";
+import {
+  accessCookieName,
+  isAccessEnabled,
+  isValidAccessToken
+} from "../../../../lib/access";
 
 type GatewayCheck = {
   id: string;
@@ -33,6 +38,10 @@ const defaultGrokResolution = "1k";
 export const dynamic = "force-dynamic";
 
 export async function POST(request: NextRequest) {
+  if (await isAccessRequired(request)) {
+    return accessDenied();
+  }
+
   const checks: GatewayCheck[] = [];
   const parsed = await readJson(request, checks);
 
@@ -101,13 +110,24 @@ export async function POST(request: NextRequest) {
     checks.push({
       id: "provider-response",
       status: "error",
-      detail:
-        caught instanceof Error
-          ? caught.message
-          : "The image provider failed for an unknown reason."
+      detail: getErrorDetail(caught, "The image provider failed for an unknown reason.")
     });
     return fail(502, "The image gateway could not generate art.", checks);
   }
+}
+
+async function isAccessRequired(request: NextRequest) {
+  return (
+    isAccessEnabled() &&
+    !(await isValidAccessToken(request.cookies.get(accessCookieName)?.value))
+  );
+}
+
+function accessDenied() {
+  return NextResponse.json(
+    { error: "Access code is required." },
+    { status: 401 }
+  );
 }
 
 async function readJson(request: NextRequest, checks: GatewayCheck[]) {
@@ -744,4 +764,16 @@ function escapeXml(value: string) {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&apos;");
+}
+
+function getErrorDetail(caught: unknown, fallback: string) {
+  if (!(caught instanceof Error)) return fallback;
+
+  const cause = caught.cause;
+
+  if (cause instanceof Error && cause.message) {
+    return `${caught.message}: ${cause.message}`;
+  }
+
+  return caught.message || fallback;
 }

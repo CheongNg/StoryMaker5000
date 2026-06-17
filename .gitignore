@@ -4,6 +4,9 @@ out
 build
 .env
 .env*.local
+.access-otp.json
+online-*.pid
+online-live-info.json
 *.log
 *.tsbuildinfo
 coverage

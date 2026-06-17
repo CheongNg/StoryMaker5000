@@ -1,5 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { backendStoryInstructions } from "../../instructions";
+import {
+  accessCookieName,
+  isAccessEnabled,
+  isValidAccessToken
+} from "../../../../lib/access";
 
 type Character = {
   id?: string;
@@ -25,10 +30,19 @@ type Scene = {
   summary: string;
 };
 
+type LivingMemory = {
+  facts: string[];
+  characterStates: string[];
+  openThreads: string[];
+  toneRules: string[];
+  continuityWarnings: string[];
+};
+
 type StoryRequest = {
   story: Story;
   characters: Character[];
   recentScenes: Scene[];
+  livingMemory: LivingMemory;
   memories: string[];
   prompt: string;
 };
@@ -40,6 +54,7 @@ type StoryResponse = {
   memoryNotes: string[];
   characterUpdates: string[];
   timelineUpdates: string[];
+  livingMemory: LivingMemory;
   imagePrompt: string;
   gateway: {
     provider: string;
@@ -62,10 +77,16 @@ const maxStoryFieldLength = 900;
 const maxCharacterFieldLength = 420;
 const maxRecentSceneTextLength = 360;
 const maxMemoryLength = 240;
+const maxLivingMemoryItemLength = 180;
+const maxLivingMemoryItems = 8;
 
 export const dynamic = "force-dynamic";
 
 export async function POST(request: NextRequest) {
+  if (await isAccessRequired(request)) {
+    return accessDenied();
+  }
+
   const checks: GatewayCheck[] = [];
   const parsed = await readJson(request, checks);
 
@@ -107,14 +128,25 @@ export async function POST(request: NextRequest) {
     checks.push({
       id: "provider-response",
       status: "error",
-      detail:
-        caught instanceof Error
-          ? caught.message
-          : "The story provider failed for an unknown reason."
+      detail: getErrorDetail(caught, "The story provider failed for an unknown reason.")
     });
 
     return fail(502, "The story gateway could not generate a scene.", checks);
   }
+}
+
+async function isAccessRequired(request: NextRequest) {
+  return (
+    isAccessEnabled() &&
+    !(await isValidAccessToken(request.cookies.get(accessCookieName)?.value))
+  );
+}
+
+function accessDenied() {
+  return NextResponse.json(
+    { error: "Access code is required." },
+    { status: 401 }
+  );
 }
 
 async function readJson(request: NextRequest, checks: GatewayCheck[]) {
@@ -148,6 +180,7 @@ function validateStoryRequest(body: unknown, checks: GatewayCheck[]) {
   const story = body.story;
   const characters = body.characters;
   const recentScenes = body.recentScenes;
+  const livingMemory = normalizeLivingMemory(body.livingMemory);
   const memories = body.memories;
   const prompt = body.prompt;
 
@@ -226,7 +259,7 @@ function validateStoryRequest(body: unknown, checks: GatewayCheck[]) {
   checks.push({
     id: "validation",
     status: "ok",
-    detail: `Accepted ${cleanCharacters.length} character(s), ${cleanRecentScenes.length} compact recent scene(s), and ${cleanMemories.length} compact memory note(s).`
+    detail: `Accepted ${cleanCharacters.length} character(s), ${cleanRecentScenes.length} compact recent scene(s), ${livingMemory.facts.length + livingMemory.characterStates.length + livingMemory.openThreads.length} living memory item(s), and ${cleanMemories.length} compact memory note(s).`
   });
 
   return {
@@ -235,6 +268,7 @@ function validateStoryRequest(body: unknown, checks: GatewayCheck[]) {
       story: cleanStory,
       characters: cleanCharacters,
       recentScenes: cleanRecentScenes,
+      livingMemory,
       memories: cleanMemories,
       prompt: prompt.trim()
     }
@@ -330,6 +364,13 @@ Return only valid JSON using this exact shape:
   "memoryNotes": ["Only durable new fact 1", "Only durable new fact 2"],
   "characterUpdates": ["Only important character change 1"],
   "timelineUpdates": ["Only important timeline event 1"],
+  "livingMemory": {
+    "facts": ["Stable story fact to carry forward"],
+    "characterStates": ["Character emotional state, relationship shift, goal, secret, or constraint"],
+    "openThreads": ["Unresolved promise, question, consequence, or setup"],
+    "toneRules": ["Ongoing tone or style rule that should remain true"],
+    "continuityWarnings": ["Potential contradiction or detail to handle carefully"]
+  },
   "imagePrompt": "One compact visual prompt under 320 characters: setting, characters, mood, lighting, composition."
 }
 
@@ -339,6 +380,7 @@ Rules:
 - Keep output concise. Do not restate background unless it changes this scene.
 - Keep imagePrompt compact; the image backend applies picture guardrails separately.
 - If multiple characters are present, keep voices distinct.
+- Update livingMemory as compact durable continuity. Keep only useful items and remove outdated or duplicated items.
 - Do not mention that you are an AI model.
 - Do not include markdown fences.
 
@@ -353,6 +395,9 @@ ${JSON.stringify(body.characters, null, 2)}
 
 Recent scenes:
 ${JSON.stringify(body.recentScenes, null, 2)}
+
+Living memory:
+${JSON.stringify(body.livingMemory, null, 2)}
 
 Long-term memory:
 ${JSON.stringify(body.memories, null, 2)}
@@ -412,6 +457,7 @@ function validateStoryResponse(body: unknown, checks: GatewayCheck[]) {
       timelineUpdates: stringArray(body.timelineUpdates)
         .map((item) => compactText(item, 180))
         .slice(0, 3),
+      livingMemory: normalizeLivingMemory(body.livingMemory),
       imagePrompt: compactText(
         stringOrDefault(
           body.imagePrompt,
@@ -441,6 +487,15 @@ function createMockScene(body: StoryRequest) {
     timelineUpdates: [
       `A new scene advanced the scenario from the prompt: ${body.prompt || "continue the story"}.`
     ],
+    livingMemory: {
+      facts: [
+        `${hero} experienced a turning point connected to the latest prompt.`
+      ],
+      characterStates: [`${hero} is more aware of the emotional stakes.`],
+      openThreads: [`Follow the consequence of: ${body.prompt || "the latest scene"}.`],
+      toneRules: [`Maintain the ${body.story.tone || "intimate and character driven"} tone.`],
+      continuityWarnings: body.livingMemory.continuityWarnings.slice(0, 3)
+    },
     imagePrompt: `Cinematic adult contemporary story illustration of ${hero} in a private, emotionally charged ${body.story.genre || "dramatic"} scenario, expressive lighting, grounded setting, cohesive character design.`
   };
 }
@@ -503,6 +558,25 @@ function stringArray(value: unknown) {
     : [];
 }
 
+function normalizeLivingMemory(value: unknown): LivingMemory {
+  const source = isObject(value) ? value : {};
+
+  return {
+    facts: cleanLivingMemoryItems(source.facts),
+    characterStates: cleanLivingMemoryItems(source.characterStates),
+    openThreads: cleanLivingMemoryItems(source.openThreads),
+    toneRules: cleanLivingMemoryItems(source.toneRules),
+    continuityWarnings: cleanLivingMemoryItems(source.continuityWarnings)
+  };
+}
+
+function cleanLivingMemoryItems(value: unknown) {
+  return stringArray(value)
+    .map((item) => compactText(item, maxLivingMemoryItemLength))
+    .filter(Boolean)
+    .slice(0, maxLivingMemoryItems);
+}
+
 function readProviderError(data: unknown, fallback: string) {
   if (!isObject(data)) return fallback;
 
@@ -513,4 +587,16 @@ function readProviderError(data: unknown, fallback: string) {
   }
 
   return fallback;
+}
+
+function getErrorDetail(caught: unknown, fallback: string) {
+  if (!(caught instanceof Error)) return fallback;
+
+  const cause = caught.cause;
+
+  if (cause instanceof Error && cause.message) {
+    return `${caught.message}: ${cause.message}`;
+  }
+
+  return caught.message || fallback;
 }

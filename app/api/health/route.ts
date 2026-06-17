@@ -1,8 +1,18 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
+import {
+  accessCookieName,
+  getAccessSecretProblem,
+  isAccessEnabled,
+  isValidAccessToken
+} from "../../../lib/access";
 
 export const dynamic = "force-dynamic";
 
-export function GET() {
+export async function GET(request: NextRequest) {
+  if (await isAccessRequired(request)) {
+    return accessDenied();
+  }
+
   const storyProvider = normalizeProvider(process.env.STORY_PROVIDER, [
     "mock",
     "openai"
@@ -13,10 +23,20 @@ export function GET() {
     "grok",
     "xai"
   ]);
+  const accessProblem = getAccessSecretProblem();
 
   return NextResponse.json({
     ok: true,
     checks: [
+      {
+        id: "access",
+        label: "Online access",
+        status: !isAccessEnabled() || accessProblem ? "warning" : "ok",
+        detail:
+          !isAccessEnabled() || accessProblem
+            ? "Use run-online.ps1 to generate a one-time online access code."
+            : "One-time online access is configured."
+      },
       {
         id: "story",
         label: "Story gateway",
@@ -37,6 +57,20 @@ export function GET() {
       }
     ]
   });
+}
+
+async function isAccessRequired(request: NextRequest) {
+  return (
+    isAccessEnabled() &&
+    !(await isValidAccessToken(request.cookies.get(accessCookieName)?.value))
+  );
+}
+
+function accessDenied() {
+  return NextResponse.json(
+    { error: "Access code is required." },
+    { status: 401 }
+  );
 }
 
 function normalizeProvider(value: string | undefined, allowed: string[]) {

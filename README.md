@@ -86,7 +86,7 @@ http://localhost:3000
 Check on phone:
 
 ```text
-http://YOUR_IPV4_ADDRESS:3000
+http://YOUR_IPV4_ADDRESS:3456
 ```
 
 Validate the main workflow:
@@ -105,7 +105,18 @@ Only commit and push after the desktop and phone checks both pass.
 ## Test from your phone
 
 1. Keep your phone and computer on the same Wi-Fi network.
-2. Start the app with `npm.cmd run dev`.
+2. Restart any old StoryMaker5000 servers and start the phone server:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File restart-servers.ps1
+```
+
+You can also double-click:
+
+```text
+restart-servers.bat
+```
+
 3. Find your computer's IPv4 address:
 
 ```powershell
@@ -115,7 +126,7 @@ ipconfig
 4. On your phone, open:
 
 ```text
-http://YOUR_IPV4_ADDRESS:3000
+http://YOUR_IPV4_ADDRESS:3456
 ```
 
 Example:
@@ -125,6 +136,53 @@ http://192.168.1.25:3000
 ```
 
 If the phone cannot connect, check Windows Firewall and make sure the network is private/trusted.
+
+## Restart server protocol
+
+Use this whenever Codex or a terminal session needs to restart the app and give you a phone link.
+
+1. Stop existing StoryMaker5000 listeners on ports `3000` and `3456`.
+2. Start the server with Windows certificate trust enabled.
+3. Print the computer link and every detected phone link.
+4. Keep the server window open while testing.
+
+The scripted command is:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File restart-servers.ps1
+```
+
+Default links:
+
+```text
+Computer: http://localhost:3456
+Phone:    http://YOUR_IPV4_ADDRESS:3456
+```
+
+## Online phone access
+
+For access outside your Wi-Fi, use a temporary Cloudflare tunnel. This exposes the same frontend through a public HTTPS link protected by a generated one-time access code. Run:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File start-online.ps1
+```
+
+You can also double-click:
+
+```text
+run-online.bat
+```
+
+The script starts the local app on `http://localhost:3456`, generates an 8-digit one-time access code, checks that the access page is responding, then uses `cloudflared` if it is installed. If not, it uses a cached `cloudflared.exe` or `npx --yes cloudflared`. Cloudflare prints a public `https://*.trycloudflare.com` link that works from your phone outside Wi-Fi.
+
+Security notes:
+
+- The public URL is not secret. Anyone with the link will see the access page.
+- The app and API routes require the one-time code before they can be used.
+- The code expires after 20 minutes and is consumed after the first successful login.
+- Failed code attempts are temporarily throttled by the local server.
+- Do not share the public URL or code. Close the script window when you are done to stop the tunnel.
+- If startup fails, check `online-server.err.log` and `online-server.out.log`.
 
 ## Mock mode
 

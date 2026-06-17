@@ -50,6 +50,15 @@ type StoryCheckpoint = {
   attitudeShifts: string[];
 };
 
+type LivingMemory = {
+  facts: string[];
+  characterStates: string[];
+  openThreads: string[];
+  toneRules: string[];
+  continuityWarnings: string[];
+  updatedAt?: string;
+};
+
 type GatewayCheck = {
   id: string;
   label?: string;
@@ -70,6 +79,7 @@ type StoryResponse = {
   memoryNotes: string[];
   characterUpdates: string[];
   timelineUpdates: string[];
+  livingMemory?: LivingMemory;
   imagePrompt: string;
   gateway?: GatewayReport;
   error?: string;
@@ -100,6 +110,13 @@ const starterCharacters: Character[] = [
 
 const storageKey = "storymaker5000-state-v2";
 const themeKey = "storymaker5000-theme";
+const defaultLivingMemory: LivingMemory = {
+  facts: [],
+  characterStates: [],
+  openThreads: [],
+  toneRules: [],
+  continuityWarnings: []
+};
 
 export default function Home() {
   const [story, setStory] = useState<Story>(defaultStory);
@@ -109,6 +126,8 @@ export default function Home() {
   );
   const [scenes, setScenes] = useState<Scene[]>([]);
   const [storyCheckpoints, setStoryCheckpoints] = useState<StoryCheckpoint[]>([]);
+  const [livingMemory, setLivingMemory] =
+    useState<LivingMemory>(defaultLivingMemory);
   const [prompt, setPrompt] = useState(
     "Continue with Mira entering a private conversation where both people are careful about what they reveal."
   );
@@ -166,6 +185,7 @@ export default function Home() {
       setSelectedCharacterId(savedCharacters[0]?.id || "");
       setScenes(parsed.scenes || []);
       setStoryCheckpoints(normalizeStoryCheckpoints(parsed.storyCheckpoints));
+      setLivingMemory(normalizeLivingMemory(parsed.livingMemory));
       setPrompt(parsed.prompt || "");
     } catch {
       window.localStorage.removeItem(storageKey);
@@ -186,7 +206,14 @@ export default function Home() {
     try {
       window.localStorage.setItem(
         storageKey,
-        JSON.stringify({ story, characters, scenes, storyCheckpoints, prompt })
+        JSON.stringify({
+          story,
+          characters,
+          scenes,
+          storyCheckpoints,
+          livingMemory,
+          prompt
+        })
       );
     } catch {
       setStorageStatus({
@@ -196,7 +223,7 @@ export default function Home() {
         detail: "This browser could not save the current draft."
       });
     }
-  }, [story, characters, scenes, storyCheckpoints, prompt]);
+  }, [story, characters, scenes, storyCheckpoints, livingMemory, prompt]);
 
   useEffect(() => {
     if ("serviceWorker" in navigator) {
@@ -228,8 +255,12 @@ export default function Home() {
     [storyCheckpoints]
   );
   const memories = useMemo(
-    () => [...checkpointMemories, ...sceneMemories],
-    [checkpointMemories, sceneMemories]
+    () => [
+      ...formatLivingMemoryForPrompt(livingMemory),
+      ...checkpointMemories,
+      ...sceneMemories
+    ],
+    [checkpointMemories, livingMemory, sceneMemories]
   );
 
   const chatScenes = useMemo(() => [...scenes].reverse(), [scenes]);
@@ -284,6 +315,16 @@ export default function Home() {
   async function refreshHealth() {
     try {
       const response = await fetch("/api/health", { cache: "no-store" });
+
+      if (response.status === 401) {
+        window.location.assign(
+          `/access?returnTo=${encodeURIComponent(
+            window.location.pathname + window.location.search
+          )}`
+        );
+        return;
+      }
+
       const data = (await response.json()) as { checks?: GatewayCheck[] };
       setHealthChecks(data.checks || []);
     } catch {
@@ -332,6 +373,7 @@ export default function Home() {
             text: scene.text,
             summary: scene.summary
           })),
+          livingMemory,
           memories: memories.slice(0, 24),
           prompt
         })
@@ -341,7 +383,11 @@ export default function Home() {
       setGateway(data.gateway || { checks: [] });
 
       if (!response.ok || data.error) {
-        throw new Error(data.error || "The scene could not be generated.");
+        throw new Error(
+          getGatewayProblem(data.gateway) ||
+            data.error ||
+            "The scene could not be generated."
+        );
       }
 
       const nextScene: Scene = {
@@ -359,6 +405,9 @@ export default function Home() {
       };
 
       setScenes((current) => [nextScene, ...current]);
+      setLivingMemory((current) =>
+        normalizeLivingMemory(data.livingMemory, current)
+      );
       setStory((current) => ({
         ...current,
         summary: data.summary
@@ -531,7 +580,7 @@ export default function Home() {
 
   function resetDraft() {
     const shouldReset = window.confirm(
-      "Reset this story? This will clear the current scenes, prompt, and scenario setup."
+      "Reset this story? This will clear the current scenes, prompt, scenario setup, character setup, and story checkpoints."
     );
 
     if (!shouldReset) return;
@@ -541,6 +590,7 @@ export default function Home() {
     setSelectedCharacterId(starterCharacters[0]?.id || "");
     setScenes([]);
     setStoryCheckpoints([]);
+    setLivingMemory(defaultLivingMemory);
     setPrompt(
       "Continue with Mira entering a private conversation where both people are careful about what they reveal."
     );
@@ -575,7 +625,7 @@ export default function Home() {
               <div className="metrics">
                 <span>{characters.length} characters</span>
                 <span>{scenes.length} scenes</span>
-                <span>{memories.length} memory notes</span>
+                <span>{countLivingMemoryItems(livingMemory)} living memories</span>
                 <span>{storyCheckpoints.length} checkpoints</span>
               </div>
             </div>
@@ -679,44 +729,38 @@ export default function Home() {
             <h3 id="composer-title">Prompt</h3>
             <span className="count">{prompt.length}/4000</span>
           </div>
-          <textarea
-            value={prompt}
-            onChange={(event) => setPrompt(event.target.value)}
-            placeholder="Write what should happen next..."
-          />
-          <div className="action-bar">
-            <button
-              className="button danger"
-              type="button"
-              disabled={busy || imageBusy}
-              onClick={resetDraft}
-            >
-              Reset Story
-            </button>
-            <button
-              className="button"
-              type="button"
-              disabled={busy || imageBusy}
-              onClick={saveStoryCheckpoint}
-            >
-              Save Checkpoint
-            </button>
-            <button
-              className="button primary"
-              type="button"
-              disabled={busy}
-              onClick={generateScene}
-            >
-              {busy ? "Submitting" : "Submit Prompt"}
-            </button>
-            <button
-              className="button"
-              type="button"
-              disabled={!latestScene || imageBusy}
-              onClick={() => latestScene && generateImage(latestScene)}
-            >
-              {imageBusy ? "Generating Image" : "Generate Image"}
-            </button>
+          <div className="composer-input-row">
+            <textarea
+              value={prompt}
+              onChange={(event) => setPrompt(event.target.value)}
+              placeholder="Write what should happen next..."
+            />
+            <div className="action-bar composer-actions">
+              <button
+                className="button primary"
+                type="button"
+                disabled={busy}
+                onClick={generateScene}
+              >
+                {busy ? "Generating Story" : "Generate Story"}
+              </button>
+              <button
+                className="button"
+                type="button"
+                disabled={!latestScene || imageBusy}
+                onClick={() => latestScene && generateImage(latestScene)}
+              >
+                {imageBusy ? "Generating Image" : "Generate Image"}
+              </button>
+              <button
+                className="button"
+                type="button"
+                disabled={busy || imageBusy}
+                onClick={saveStoryCheckpoint}
+              >
+                Save Checkpoint
+              </button>
+            </div>
           </div>
           <div className="gateway-strip">
             <ProviderBadge gateway={gateway} />
@@ -857,6 +901,42 @@ export default function Home() {
               <p>Save the current storyline and character shifts when a scene lands.</p>
             </div>
           )}
+        </section>
+
+        <section className="drawer-section" aria-labelledby="living-memory">
+          <div className="drawer-section-title">
+            <h3 id="living-memory">Living Memory</h3>
+            <span className="count">
+              {countLivingMemoryItems(livingMemory)} items
+            </span>
+          </div>
+          <div className="memory-grid">
+            <MemoryList title="Facts" items={livingMemory.facts} />
+            <MemoryList title="Character States" items={livingMemory.characterStates} />
+            <MemoryList title="Open Threads" items={livingMemory.openThreads} />
+            <MemoryList title="Tone Rules" items={livingMemory.toneRules} />
+            <MemoryList
+              title="Continuity Warnings"
+              items={livingMemory.continuityWarnings}
+            />
+          </div>
+        </section>
+
+        <section className="drawer-section" aria-labelledby="additional-options">
+          <div className="drawer-section-title">
+            <h3 id="additional-options">Additional Options</h3>
+          </div>
+          <div className="option-row">
+            <span>Reset current story</span>
+            <button
+              className="button danger"
+              type="button"
+              disabled={busy || imageBusy}
+              onClick={resetDraft}
+            >
+              Reset Story
+            </button>
+          </div>
         </section>
 
         <section className="drawer-section" aria-labelledby="character-background">
@@ -1126,6 +1206,23 @@ function Field({
       <span>{label}</span>
       {children}
     </label>
+  );
+}
+
+function MemoryList({ title, items }: { title: string; items: string[] }) {
+  return (
+    <div className="memory-group">
+      <span>{title}</span>
+      {items.length > 0 ? (
+        <ul>
+          {items.map((item) => (
+            <li key={item}>{item}</li>
+          ))}
+        </ul>
+      ) : (
+        <p>No active memory yet.</p>
+      )}
+    </div>
   );
 }
 
@@ -1444,6 +1541,57 @@ function normalizeStoryCheckpoints(value: unknown): StoryCheckpoint[] {
     }))
     .filter((checkpoint) => checkpoint.storyline.trim())
     .slice(0, 12);
+}
+
+function normalizeLivingMemory(
+  value: unknown,
+  fallback: LivingMemory = defaultLivingMemory
+): LivingMemory {
+  const source =
+    value && typeof value === "object" && !Array.isArray(value)
+      ? (value as Partial<LivingMemory>)
+      : fallback;
+
+  return {
+    facts: cleanLivingMemoryItems(source.facts),
+    characterStates: cleanLivingMemoryItems(source.characterStates),
+    openThreads: cleanLivingMemoryItems(source.openThreads),
+    toneRules: cleanLivingMemoryItems(source.toneRules),
+    continuityWarnings: cleanLivingMemoryItems(source.continuityWarnings),
+    updatedAt: typeof source.updatedAt === "string" ? source.updatedAt : new Date().toISOString()
+  };
+}
+
+function cleanLivingMemoryItems(value: unknown) {
+  if (!Array.isArray(value)) return [];
+
+  return collectUnique(
+    value.filter((item): item is string => typeof item === "string")
+  )
+    .map((item) => compactCheckpointText(item, 180))
+    .slice(0, 8);
+}
+
+function formatLivingMemoryForPrompt(memory: LivingMemory) {
+  return [
+    ...memory.facts.map((item) => `Living fact: ${item}`),
+    ...memory.characterStates.map((item) => `Living character state: ${item}`),
+    ...memory.openThreads.map((item) => `Living open thread: ${item}`),
+    ...memory.toneRules.map((item) => `Living tone rule: ${item}`),
+    ...memory.continuityWarnings.map(
+      (item) => `Living continuity warning: ${item}`
+    )
+  ];
+}
+
+function countLivingMemoryItems(memory: LivingMemory) {
+  return (
+    memory.facts.length +
+    memory.characterStates.length +
+    memory.openThreads.length +
+    memory.toneRules.length +
+    memory.continuityWarnings.length
+  );
 }
 
 function groupCharacters(characters: Character[]) {

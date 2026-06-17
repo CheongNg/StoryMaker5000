@@ -813,6 +813,60 @@ select:focus {
   padding-left: 18px;
 }
 
+.option-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.option-row span {
+  color: var(--muted);
+  font-size: 0.9rem;
+  font-weight: 800;
+}
+
+.memory-grid {
+  display: grid;
+  gap: 12px;
+}
+
+.memory-group {
+  border-top: 1px solid var(--line);
+  padding-top: 10px;
+}
+
+.memory-group:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.memory-group > span {
+  display: block;
+  color: var(--muted);
+  font-size: 0.76rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.memory-group ul,
+.memory-group p {
+  margin: 6px 0 0;
+  color: var(--ink);
+  font-size: 0.84rem;
+  line-height: 1.42;
+}
+
+.memory-group ul {
+  display: grid;
+  gap: 5px;
+  padding-left: 18px;
+}
+
+.memory-group p {
+  color: var(--muted);
+}
+
 .upload-control {
   display: inline-flex;
   width: fit-content;
@@ -982,6 +1036,13 @@ select:focus {
   min-height: 92px;
 }
 
+.composer-input-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 180px;
+  align-items: stretch;
+  gap: 10px;
+}
+
 .composer-topline,
 .action-bar,
 .gateway-strip {
@@ -1003,6 +1064,17 @@ select:focus {
 .action-bar {
   justify-content: flex-end;
   margin-top: 10px;
+}
+
+.composer-actions {
+  display: grid;
+  align-content: stretch;
+  margin-top: 0;
+}
+
+.composer-actions .button {
+  width: 100%;
+  min-height: 0;
 }
 
 .gateway-strip {
@@ -1138,6 +1210,37 @@ select:focus {
   font-weight: 800;
 }
 
+.access-shell {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+}
+
+.access-panel {
+  width: min(100%, 380px);
+  display: grid;
+  gap: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  box-shadow: var(--shadow);
+  padding: 20px;
+}
+
+.access-panel h1 {
+  margin: 4px 0 0;
+  font-size: 1.55rem;
+  line-height: 1.1;
+}
+
+.access-kicker {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
 .check {
   display: grid;
   grid-template-columns: 12px minmax(0, 1fr);
@@ -1218,6 +1321,7 @@ select:focus {
   .scene header,
   .message-header,
   .action-bar,
+  .composer-input-row,
   .gateway-strip {
     display: grid;
   }
@@ -1252,5 +1356,17 @@ select:focus {
 
   .button {
     flex: 1 1 auto;
+  }
+
+  .composer-input-row {
+    grid-template-columns: 1fr;
+  }
+
+  .composer-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .option-row {
+    display: grid;
   }
 }
