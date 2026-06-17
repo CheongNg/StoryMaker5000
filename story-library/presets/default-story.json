@@ -19,8 +19,8 @@
       "appearance": "tidy, sleek blonde short hair, tries to appear conservative in public, likes to wear white tank tops, large breasts",
       "goals": "Family bonding, believes best to keep it in the family and take whatever means to do so",
       "secrets": "Has secret fascination with female breasts, nipples and pubic hair, but is too ashamed to admit it to herself or anyone else.",
-      "portraitUrl": "/character-pictures/Main1.jpg",
-      "portraitName": "Main1.jpg"
+      "portraitUrl": "/character-pictures/zoe.jpg",
+      "portraitName": "zoe.jpg"
     },
     {
       "id": "brenna",
@@ -31,8 +31,8 @@
       "appearance": "tidy, sleek blonde short hair, likes to wear white tank tops, not keen on bras, large breasts",
       "goals": "Family bonding, believes best to keep it in the family and take whatever means to do so",
       "secrets": "Has secret fascination with female breasts, nipples and pubic hair, but is too ashamed to admit it to herself or anyone else.",
-      "portraitUrl": "",
-      "portraitName": ""
+      "portraitUrl": "/character-pictures/Brenna.jpg",
+      "portraitName": "brenna.jpg"
     }
   ],
   "characterRoster": [
@@ -45,8 +45,8 @@
       "appearance": "tidy, sleek blonde short hair, tries to appear conservative in public, likes to wear white tank tops, large breasts",
       "goals": "Family bonding, believes best to keep it in the family and take whatever means to do so",
       "secrets": "Has secret fascination with female breasts, nipples and pubic hair, but is too ashamed to admit it to herself or anyone else.",
-      "portraitUrl": "/character-pictures/Main1.jpg",
-      "portraitName": "Main1.jpg"
+      "portraitUrl": "/character-pictures/zoe.jpg",
+      "portraitName": "zoe.jpg"
     },
     {
       "id": "brenna",
@@ -57,11 +57,11 @@
       "appearance": "tidy, sleek blonde short hair, likes to wear white tank tops, not keen on bras, large breasts",
       "goals": "Family bonding, believes best to keep it in the family and take whatever means to do so",
       "secrets": "Has secret fascination with female breasts, nipples and pubic hair, but is too ashamed to admit it to herself or anyone else.",
-      "portraitUrl": "",
-      "portraitName": ""
+      "portraitUrl": "/character-pictures/Brenna.jpg",
+      "portraitName": "brenna.jpg"
     },
     {
-      "id": "lexi",
+      "id": "Lexi",
       "name": "Lexi Honeywilder",
       "family": "Honeywilder",
       "role": "Zoe's sister",
@@ -73,7 +73,7 @@
       "portraitName": "Lexi1.jpg"
     },
     {
-      "id": "darcie",
+      "id": "Darcie",
       "name": "Darcie",
       "family": "",
       "role": "Member",
@@ -84,17 +84,41 @@
       "portraitUrl": "/character-pictures/Darcie1.jpg",
       "portraitName": "Darcie1.jpg"
     },
-    {
-      "id": "nikki",
-      "name": "Nikki",
+        {
+      "id": "Skylar",
+      "name": "Skylar",
       "family": "",
       "role": "Member",
       "personality": "",
       "appearance": "",
       "goals": "",
       "secrets": "",
-      "portraitUrl": "/character-pictures/Nikki1.jpg",
-      "portraitName": "Nikki1.jpg"
+      "portraitUrl": "/character-pictures/Skylar3.jpg",
+      "portraitName": "Skylar3.jpg"
+    },
+    {
+      "id": "Hanna",
+      "name": "Hanna",
+      "family": "",
+      "role": "Member",
+      "personality": "",
+      "appearance": "",
+      "goals": "",
+      "secrets": "",
+      "portraitUrl": "/character-pictures/Hanna1.jpg",
+      "portraitName": "Hanna1.jpg"
+    },
+    {
+      "id": "Inky",
+      "name": "Inky",
+      "family": "",
+      "role": "Member",
+      "personality": "",
+      "appearance": "",
+      "goals": "",
+      "secrets": "",
+      "portraitUrl": "/character-pictures/inky2.jpg",
+      "portraitName": "inky2.jpg"
     }
   ],
   "starterPrompt": "Zoe in the kitchen thinking about her life"

@@ -10,11 +10,21 @@ Only change `app/api/instructions.ts` when the user explicitly asks to edit that
 
 ## Local test URL
 
-After making any change and starting the dev server, always give the user the local URL so they can test immediately:
+After making any change, restart the server and always provide both URLs so the user can test immediately.
 
-**http://localhost:3456**
+**To restart:** run `restart-servers.bat` (double-click) or call the PowerShell script directly:
+```
+Start-Process powershell -ArgumentList '-ExecutionPolicy','Bypass','-File','scripts\server\restart-servers.ps1' -WindowStyle Normal
+```
+Then confirm port 3456 is listening before sharing the URLs.
 
-The server is started via `restart-servers.bat` or `scripts/server/restart-servers.ps1`. The terminal also prints the phone (LAN) URL. Share both when relevant.
+**Desktop:** http://localhost:3456
+
+**Phone (LAN):** find the current LAN IP with:
+```powershell
+Get-NetIPAddress -AddressFamily IPv4 | Where-Object { $_.IPAddress -notmatch "^127\." -and $_.IPAddress -notmatch "^169\.254\." -and $_.PrefixOrigin -ne "WellKnown" } | Select-Object -ExpandProperty IPAddress
+```
+Then give the user `http://<IP>:3456`.
 
 ## Dev roadmap
 
